@@ -1,16 +1,33 @@
-# Ne pas pousser les fichiers Markdown (CLAUDE.md, notes perso, etc.)
-*.md
+# Notes perso / instructions IA (NON poussées)
+CLAUDE.md
+*.txt
+# Exception : CMakeLists.txt est du code, on le versionne malgré la règle *.txt.
+!CMakeLists.txt
 
-# Binaires compilés C++
+# Artefacts régénérables (cours LaTeX : le .tex est versionné, le .pdf non)
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# Binaires C++
 *.o
 *.obj
-*.out
-*.exe
 a.out
-build/
+*.exe
 *.dSYM/
 
-# Fichiers éditeur / OS
+# Build CMake
+build/
+build-*/
+cmake-build-*/
+_deps/
+
+# Éditeur / OS
 .vscode/
 .idea/
 *.swp
