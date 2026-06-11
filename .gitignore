@@ -1,0 +1,17 @@
+# Ne pas pousser les fichiers Markdown (CLAUDE.md, notes perso, etc.)
+*.md
+
+# Binaires compilés C++
+*.o
+*.obj
+*.out
+*.exe
+a.out
+build/
+*.dSYM/
+
+# Fichiers éditeur / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
