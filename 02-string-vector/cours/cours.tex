@@ -1,0 +1,549 @@
+\documentclass[11pt]{article}
+\input{preambule}
+
+\title{\textbf{Chapitre 2 — \code{string} \& \code{vector} au quotidien,
+       et organiser son code}\\[0.3em]
+       \large Les deux conteneurs de base, et la modularité}
+\author{Formation C++ moderne}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Au chapitre 1 tu as croisé \code{std::string} et \code{std::vector}
+en survol. Ici on les prend pour de bon : ce sont les deux conteneurs que tu
+manipuleras dans 90\% de ton code. On apprend leurs méthodes utiles, comment
+les parcourir proprement (boucle par intervalle \emph{et} itérateurs en boîte
+noire), comment classer un caractère sans tomber dans le piège classique de
+\code{<cctype>}, et on découvre deux premières fonctions de \code{<algorithm>}.
+La seconde moitié du chapitre passe à l'organisation : séparer
+\code{.hpp}/\code{.cpp}, comprendre l'erreur « multiple definition », ranger son
+code dans des \emph{namespaces}, et un rappel de RAII. Chaque brique est
+présentée \emph{avant} que tu en aies besoin, avec sa signature et un exemple
+d'appel.
+\end{abstract}
+
+\tableofcontents
+\bigskip\hrule\bigskip
+
+% ===========================================================================
+\section{\code{std::string} en pratique}
+
+\code{std::string} gère sa mémoire, connaît sa taille, se concatène avec
+\code{+} et se compare avec \code{==}. C'est l'outil par défaut pour le texte ;
+oublie les tableaux de \code{char} hérités du C. Voici les méthodes que tu
+utiliseras le plus, chacune avec un exemple d'appel concret.
+
+\subsection*{Taille : \code{size()}}
+
+\code{s.size()} renvoie le nombre de caractères, sous la forme d'un
+\code{std::size\_t} (un entier \emph{non signé}). \code{length()} est un
+synonyme exact.
+
+\begin{lstlisting}
+std::string s = "salut";
+std::size_t n = s.size();        // n vaut 5
+bool vide = s.empty();           // false (equivaut a s.size() == 0)
+\end{lstlisting}
+
+\subsection*{Accès à un caractère : \code{at(i)} vs \code{[i]}}
+
+Les deux donnent le \code{char} à l'indice \code{i} (à partir de 0). La
+différence est la vérification des bornes :
+
+\begin{lstlisting}
+std::string s = "salut";
+char a = s[0];       // 's'  -- PAS de verification de bornes
+char b = s.at(4);    // 't'  -- verifie : leve std::out_of_range si i >= size()
+char& r = s[0];      // reference : s[0] = 'S'; modifie la chaine en place
+\end{lstlisting}
+
+\begin{aretenir}[\code{at} ou \code{[]} ?]
+\code{[]} est plus rapide (aucune vérification) mais un indice hors bornes est
+un \emph{comportement indéfini} (UB) : crash, valeur corrompue, ou pire, rien
+d'apparent. \code{at()} vérifie et lève une exception propre. En phase
+d'apprentissage et partout où l'indice vient d'un calcul incertain, préfère
+\code{at()}. Une fois sûr de tes bornes, \code{[]} est l'idiome courant.
+\end{aretenir}
+
+\subsection*{Concaténation : \code{+} et \code{+=}}
+
+\begin{lstlisting}
+std::string prenom = "Ada";
+std::string nom    = "Lovelace";
+std::string complet = prenom + " " + nom;   // "Ada Lovelace"
+complet += " !";                            // "Ada Lovelace !"
+complet += '?';                             // on peut aussi ajouter un seul char
+\end{lstlisting}
+
+\subsection*{Comparaison : \code{==}, \code{!=}, \code{<}}
+
+Contrairement au C (où on devait appeler \code{strcmp}), les chaînes se
+comparent directement. \code{<} suit l'ordre lexicographique.
+
+\begin{lstlisting}
+std::string a = "abc", b = "abc", c = "abd";
+bool egal     = (a == b);    // true
+bool avant    = (a < c);     // true  ("abc" vient avant "abd")
+\end{lstlisting}
+
+\subsection*{Sous-chaîne : \code{substr(pos, len)}}
+
+\code{s.substr(pos, len)} renvoie une \emph{nouvelle} chaîne : \code{len}
+caractères à partir de l'indice \code{pos}. Si \code{len} est omis (ou dépasse),
+on prend jusqu'à la fin.
+
+\begin{lstlisting}
+std::string s = "anticonstitutionnel";
+std::string m1 = s.substr(0, 4);    // "anti"
+std::string m2 = s.substr(4, 3);    // "con"
+std::string m3 = s.substr(4);       // "constitutionnel"  (jusqu'au bout)
+\end{lstlisting}
+
+\subsection*{Recherche : \code{find(c)} et \code{std::string::npos}}
+
+\code{s.find(c)} renvoie l'indice de la \emph{première} occurrence de \code{c}
+(un caractère ou une sous-chaîne). Si rien n'est trouvé, elle renvoie la valeur
+spéciale \code{std::string::npos}.
+
+\begin{lstlisting}
+std::string s = "a=42;b=7";
+std::size_t pos = s.find('=');           // 1
+if (pos != std::string::npos) {
+    std::string cle = s.substr(0, pos);  // "a"
+}
+std::size_t absent = s.find('z');        // == std::string::npos (non trouve)
+\end{lstlisting}
+
+\begin{piege}[\code{npos} n'est pas $-1$]
+\code{std::string::npos} est la plus grande valeur d'un \code{std::size\_t}
+(non signé). Ne teste \emph{jamais} \code{find(...) >= 0} (toujours vrai pour un
+non-signé !) ni \code{find(...) == -1}. Le seul test correct est
+\code{== std::string::npos} ou \code{!= std::string::npos}.
+\end{piege}
+
+\subsection*{Vers une API C : \code{c\_str()}}
+
+Certaines fonctions anciennes attendent un \code{const char*} terminé par un
+zéro. \code{c\_str()} te le fournit sans copie.
+
+\begin{lstlisting}
+std::string chemin = "data.txt";
+std::FILE* f = std::fopen(chemin.c_str(), "r");   // l'API C veut un const char*
+\end{lstlisting}
+
+\begin{aretenir}[Le réflexe \code{std::string}]
+Taille avec \code{size()}, accès sûr avec \code{at()}, assemblage avec
+\code{+}/\code{+=}, comparaison avec \code{==}, découpe avec \code{substr},
+recherche avec \code{find} (+ test \code{npos}). Tu couvres déjà l'immense
+majorité des besoins texte.
+\end{aretenir}
+
+% ===========================================================================
+\section{\code{std::vector} en pratique}
+
+Le \code{std::vector} est le tableau dynamique standard : une suite d'éléments
+contiguë en mémoire, qui grandit toute seule. C'est ton conteneur par défaut
+dès que tu veux « une liste de choses ».
+
+\subsection*{Construire et remplir : \code{push\_back}, \code{size}}
+
+\begin{lstlisting}
+std::vector<int> v;            // vide
+v.push_back(10);               // {10}
+v.push_back(20);               // {10, 20}
+std::size_t n = v.size();      // 2
+bool vide = v.empty();         // false
+
+std::vector<int> w = {1, 2, 3};        // initialisation directe
+std::vector<double> z(5, 0.0);         // 5 elements valant 0.0
+\end{lstlisting}
+
+\code{push\_back(x)} ajoute \code{x} à la fin. \code{size()} renvoie le nombre
+d'éléments (un \code{std::size\_t}). Le \code{vector} gère lui-même sa mémoire :
+quand il est plein, il en réalloue automatiquement (on verra le détail
+— capacité, \code{reserve} — dans un chapitre ultérieur).
+
+\subsection*{Accès : \code{[]} vs \code{at}}
+
+Même distinction que pour \code{std::string} : \code{[]} ne vérifie pas les
+bornes (UB si hors limites), \code{at()} vérifie et lève
+\code{std::out\_of\_range}.
+
+\begin{lstlisting}
+std::vector<int> v = {10, 20, 30};
+int a = v[1];        // 20  -- pas de verification
+int b = v.at(2);     // 30  -- verifie les bornes
+v[0] = 99;           // ecriture en place : v = {99, 20, 30}
+\end{lstlisting}
+
+\subsection*{Un vector de vectors : la grille}
+
+Pour une matrice ou une grille 2D, l'outil naturel est un
+\code{std::vector<std::vector<int>>} : un vecteur dont chaque élément est
+lui-même un vecteur (une ligne).
+
+\begin{lstlisting}
+std::vector<std::vector<int>> grille = {
+    {1, 2, 3},
+    {4, 5, 6}
+};
+int x = grille[1][2];        // 6  : ligne 1, colonne 2
+std::size_t lignes   = grille.size();      // 2
+std::size_t colonnes = grille[0].size();   // 3
+\end{lstlisting}
+
+\paragraph{Construire une grille dimensionnée d'un coup.} Le constructeur
+\code{std::vector(taille, valeur)} crée \code{taille} copies de \code{valeur}.
+En l'imbriquant, on fabrique une grille \code{rows}$\times$\code{cols}
+pré-remplie :
+
+\begin{lstlisting}
+int rows = 3, cols = 4, fill = 0;
+std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, fill));
+// 3 lignes, chacune etant une copie d'un vector de 4 zeros
+grid[2][3] = 7;              // tous les indices existent deja
+\end{lstlisting}
+
+\begin{aretenir}[Lis la construction de l'intérieur vers l'extérieur]
+\code{std::vector<int>(cols, fill)} = une ligne de \code{cols} éléments valant
+\code{fill}. Puis \code{std::vector<...>(rows, cette\_ligne)} = \code{rows}
+copies de cette ligne. Résultat : une grille toute prête, sans aucun
+\code{push\_back}.
+\end{aretenir}
+
+% ===========================================================================
+\section{Parcourir un conteneur}
+
+\subsection*{La boucle \code{for} par intervalle}
+
+Pour visiter tous les éléments d'un \code{std::vector}, d'une
+\code{std::string}\ldots, l'idiome moderne est la \textbf{boucle \code{for} par
+intervalle} (\emph{range-based for}) :
+
+\begin{lstlisting}
+std::vector<int> v = {10, 20, 30};
+for (int x : v) {                 // x prend 10, puis 20, puis 30
+    std::cout << x << ' ';
+}
+\end{lstlisting}
+
+Comme pour les arguments de fonction, la question clé est : \code{x} est-il une
+\emph{copie} ou une \emph{référence} de l'élément ? Cela dépend de comment tu le
+déclares :
+
+\begin{lstlisting}
+for (int x : v)          { x *= 2; }   // COPIE : v reste {10,20,30}
+for (auto& x : v)        { x *= 2; }   // REFERENCE : v devient {20,40,60}
+for (const auto& x : v)  { lire(x);  } // reference en lecture seule
+\end{lstlisting}
+
+\begin{aretenir}[Quel qualificatif choisir ?]
+\begin{itemize}[noitemsep]
+    \item \code{const auto\&} → \textbf{le défaut} : lire sans copier. Idéal
+          pour les gros objets (\code{std::string}, sous-vecteurs\ldots).
+    \item \code{auto\&} → quand tu veux \textbf{modifier} chaque élément en
+          place.
+    \item \code{auto} / par valeur → seulement pour les types minuscules
+          (\code{int}, \code{char}\ldots) ou si tu veux explicitement une copie.
+\end{itemize}
+\end{aretenir}
+
+\subsection*{La forme itérateur explicite (boîte noire)}
+
+Derrière la boucle par intervalle se cachent des \textbf{itérateurs} : des
+objets qui « pointent » sur un élément et savent avancer au suivant. Tu
+croiseras leur forme explicite dans du code existant :
+
+\begin{lstlisting}
+for (auto it = v.begin(); it != v.end(); ++it) {
+    std::cout << *it << ' ';   // *it = l'element pointe
+}
+\end{lstlisting}
+
+\code{begin()} pointe sur le premier élément, \code{end()} \emph{juste après} le
+dernier (sentinelle de fin), \code{++it} avance d'un cran, \code{*it} lit (ou
+écrit) l'élément pointé.
+
+\begin{aretenir}[Itérateurs : pour l'instant, boîte noire]
+Tu n'as pas besoin de maîtriser les itérateurs aujourd'hui : la boucle par
+intervalle suffit à presque tout. On les \emph{approfondira au chapitre
+Pointeurs / Algorithmes}. Retiens juste la mécanique \code{begin}/\code{end},
+\code{++it}, \code{*it} pour lire le code des autres.
+\end{aretenir}
+
+\subsection*{Parcourir à l'envers : \code{rbegin()} / \code{rend()}}
+
+Pour parcourir de la fin vers le début, il existe des itérateurs \emph{inverses}
+\code{rbegin()} (dernier élément) et \code{rend()} (juste avant le premier).
+\code{++} les fait reculer dans la séquence d'origine.
+
+\begin{lstlisting}
+std::string s = "abc";
+for (auto it = s.rbegin(); it != s.rend(); ++it) {
+    std::cout << *it;          // affiche : c b a
+}
+\end{lstlisting}
+
+\paragraph{L'astuce d'inversion en une ligne.} Beaucoup de conteneurs ont un
+constructeur qui prend un \emph{intervalle} \code{[debut, fin)} sous forme de
+deux itérateurs, et recopie tout ce qui est dedans. En lui passant la paire
+\emph{inverse}, on obtient une copie à l'envers :
+
+\begin{lstlisting}
+std::string s = "Lovelace";
+std::string inverse(s.rbegin(), s.rend());   // "ecalevoL"
+\end{lstlisting}
+
+\begin{aretenir}[Inverser une chaîne sans boucle]
+\code{std::string(s.rbegin(), s.rend())} construit une nouvelle chaîne en lisant
+\code{s} de la fin au début. C'est l'idiome le plus court pour inverser. Là
+encore, le \emph{pourquoi} (itérateurs, constructeur d'intervalle) sera détaillé
+plus tard ; sers-t'en comme d'une formule toute faite pour le moment.
+\end{aretenir}
+
+% ===========================================================================
+\section{Classifier un caractère avec \code{<cctype>}}
+
+L'en-tête \code{<cctype>} fournit des fonctions pour \emph{tester} et
+\emph{transformer} un caractère. Les plus utiles :
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+\textbf{Fonction} & \textbf{Renvoie vrai si\ldots / fait\ldots} \\
+\hline
+\code{std::isalpha(c)} & \code{c} est une lettre \\
+\code{std::isdigit(c)} & \code{c} est un chiffre \code{'0'}--\code{'9'} \\
+\code{std::isspace(c)} & \code{c} est une espace, tab, retour ligne\ldots \\
+\code{std::tolower(c)} & renvoie la version minuscule de \code{c} \\
+\code{std::toupper(c)} & renvoie la version majuscule de \code{c} \\
+\hline
+\end{tabular}
+\end{center}
+
+Exemple d'appels (attention à la ligne suivante sur le cast, c'est le point
+crucial) :
+
+\begin{lstlisting}
+char c = 'A';
+bool lettre = std::isalpha(static_cast<unsigned char>(c));   // true
+bool chiffre = std::isdigit(static_cast<unsigned char>(c));  // false
+char minus = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+// minus vaut 'a'
+\end{lstlisting}
+
+\begin{piege}[Le cast \code{static\_cast<unsigned char>(c)} est OBLIGATOIRE]
+Ces fonctions sont héritées du C et attendent un \code{int} dont la valeur tient
+dans \code{unsigned char} (ou vaut \code{EOF}). Or sur beaucoup de plateformes
+\code{char} est \emph{signé} : un caractère accentué ou tout octet $\geq 128$
+devient \emph{négatif}. Passer directement un \code{char} négatif est un
+\textbf{comportement indéfini}. La parade systématique : envelopper l'argument
+dans \code{static\_cast<unsigned char>(c)}. À prendre comme un réflexe
+automatique chaque fois que tu appelles une fonction de \code{<cctype>}.
+\end{piege}
+
+\paragraph{Normaliser une lettre.} Mettre un caractère en minuscule, par
+exemple pour comparer sans tenir compte de la casse :
+
+\begin{lstlisting}
+// renvoie c en minuscule (c suppose etre une lettre)
+char en_minuscule(char c) {
+    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+}
+\end{lstlisting}
+
+Note le double \code{static\_cast} : un en \emph{entrée} (pour respecter le
+contrat de \code{tolower} et éviter l'UB), un en \emph{sortie} (car
+\code{tolower} renvoie un \code{int} qu'on veut reranger dans un \code{char}).
+
+% ===========================================================================
+\section{Découvrir \code{<algorithm>} en douceur}
+
+L'en-tête \code{<algorithm>} contient une grande boîte à outils de fonctions qui
+travaillent sur des \emph{intervalles} (un \code{begin} et un \code{end}). On en
+fera tout un chapitre plus tard ; pour l'instant, juste deux fonctions très
+parlantes, à utiliser en boîte noire.
+
+\subsection*{Compter : \code{std::count}}
+
+\textbf{Signature (simplifiée) :}
+\begin{lstlisting}
+std::count(debut, fin, valeur);   // -> combien d'elements egaux a `valeur`
+\end{lstlisting}
+
+\code{std::count(v.begin(), v.end(), valeur)} compte combien d'éléments de
+l'intervalle \code{[begin, end)} sont égaux à \code{valeur}.
+
+\begin{lstlisting}
+std::vector<int> v = {3, 1, 3, 7, 3};
+long n = std::count(v.begin(), v.end(), 3);   // 3 occurrences
+
+std::string s = "mississippi";
+long s_count = std::count(s.begin(), s.end(), 's');   // 4
+\end{lstlisting}
+
+\subsection*{Chercher : \code{std::find}}
+
+\textbf{Signature (simplifiée) :}
+\begin{lstlisting}
+std::find(debut, fin, valeur);    // -> iterateur sur la 1re occurrence, ou `fin`
+\end{lstlisting}
+
+\code{std::find} renvoie un \emph{itérateur} sur la première occurrence ; s'il
+ne trouve rien, il renvoie l'itérateur de fin (\code{end}). D'où le test
+habituel contre \code{end()} :
+
+\begin{lstlisting}
+std::vector<int> v = {10, 20, 30};
+auto it = std::find(v.begin(), v.end(), 20);
+if (it != v.end()) {
+    std::cout << "trouve a la position " << (it - v.begin()) << '\n';  // 1
+}
+\end{lstlisting}
+
+\begin{aretenir}[Boîte noire assumée]
+Tu peux te servir de \code{std::count} et \code{std::find} dès maintenant sans
+comprendre leur implémentation : ce sont « compter / chercher sur un
+intervalle ». Le \emph{pourquoi} des itérateurs et la richesse de
+\code{<algorithm>} (transformations, tris, prédicats\ldots) seront le sujet du
+\emph{chapitre Algorithmes}.
+\end{aretenir}
+
+% ===========================================================================
+\section{Organiser : headers (\code{.hpp}) vs sources (\code{.cpp})}
+
+Dès qu'un projet dépasse un fichier, on sépare \textbf{déclaration} et
+\textbf{définition}. On \emph{déclare} dans le header (le « contrat » : quels
+noms existent), on \emph{définit} dans le source (le corps).
+
+\begin{lstlisting}
+// geometry.hpp
+#pragma once                 // evite la double inclusion
+namespace geom {
+    double rectangle_area(double w, double h);   // declaration (pas de corps)
+}
+\end{lstlisting}
+\begin{lstlisting}
+// geometry.cpp
+#include "geometry.hpp"
+namespace geom {
+    double rectangle_area(double w, double h) { return w * h; }  // definition
+}
+\end{lstlisting}
+
+\paragraph{\code{\#pragma once}.} Place cette ligne en tête de chaque header.
+Elle garantit que le contenu n'est inclus qu'\emph{une fois} par unité de
+traduction, même si plusieurs fichiers s'incluent en cascade. (L'alternative
+historique est le trio \code{\#ifndef} / \code{\#define} / \code{\#endif} ;
+\code{\#pragma once} est plus court et largement supporté.)
+
+\begin{piege}[Erreur d'édition de liens : « multiple definition »]
+Si tu \emph{définis} une fonction (non \code{inline}) directement dans un header
+inclus par plusieurs \code{.cpp}, chaque \code{.cpp} en produit une copie, et le
+linker voit plusieurs définitions du même symbole : il refuse avec
+\emph{multiple definition of `geom::rectangle\_area'}. La règle simple :
+\textbf{déclarations dans le \code{.hpp}, définitions dans le \code{.cpp}}.
+(Exceptions : fonctions \code{inline}, templates, \code{constexpr} — qu'on verra
+plus tard.)
+\end{piege}
+
+\begin{aretenir}[Le partage du travail]
+Le \code{.hpp} dit \emph{ce qui existe} (à inclure par les utilisateurs) ; le
+\code{.cpp} dit \emph{comment ça marche} (compilé une seule fois). Cette
+séparation est aussi ce qui permet de recompiler vite : changer un corps dans un
+\code{.cpp} ne force pas à tout reconstruire.
+\end{aretenir}
+
+% ===========================================================================
+\section{Namespaces}
+
+Les \textbf{namespaces} organisent le code et évitent les collisions de noms
+(deux bibliothèques peuvent définir un \code{area} sans se gêner). Tout ce qui
+vient de la bibliothèque standard vit dans \code{std::}.
+
+\begin{lstlisting}
+namespace geom {
+    double rectangle_area(double w, double h);
+}
+// appel depuis l'exterieur : on qualifie avec le nom du namespace
+double a = geom::rectangle_area(3.0, 4.0);
+\end{lstlisting}
+
+\paragraph{Rouvrir un namespace.} Un namespace n'est pas un bloc unique : on
+peut le « rouvrir » dans plusieurs fichiers ou plusieurs endroits. Tout ce qui
+est entre \code{namespace geom \{ ... \}} appartient à \code{geom}, où que ce
+bloc se trouve.
+
+\begin{lstlisting}
+namespace geom { double rectangle_area(double w, double h); }
+// ... plus loin, ou dans un autre fichier ...
+namespace geom { double circle_area(double r); }   // meme namespace, complete
+\end{lstlisting}
+
+\begin{piege}[\code{using namespace std;}]
+Ne le mets \emph{jamais} dans un header (tu l'imposerais à tous ceux qui
+l'incluent), et évite-le même en \code{.cpp}. Il importe \emph{tout}
+\code{std} et provoque des collisions sournoises (ton \code{count} contre
+\code{std::count}, ton \code{distance} contre \code{std::distance}\ldots).
+Écrire \code{std::cout} est un peu plus long mais explicite et sans danger. Si
+un nom revient sans cesse, préfère un \code{using} \emph{ciblé}
+(\code{using std::string;}) plutôt que tout le namespace.
+\end{piege}
+
+% ===========================================================================
+\section{RAII en survol}
+
+\textbf{RAII} (\emph{Resource Acquisition Is Initialization}) : une ressource
+est acquise dans le constructeur d'un objet et \emph{libérée automatiquement}
+dans son destructeur, à la fin de la portée. C'est \emph{le} pilier de C++ : pas
+de \code{finally}, pas d'oubli de libération — la destruction est
+\textbf{déterministe}, elle a lieu à l'accolade fermante.
+
+\begin{lstlisting}
+{
+    std::vector<int> v(1000);   // memoire allouee a la construction
+}   // <-- ici v est detruit, memoire liberee automatiquement
+\end{lstlisting}
+
+C'est exactement pour ça que \code{std::string} et \code{std::vector} sont si
+confortables : ils acquièrent leur mémoire à la création et la rendent seuls à
+leur destruction. Tu n'écris ni \code{new} ni \code{delete}, tu ne « fermes »
+rien à la main.
+
+\begin{aretenir}[Pourquoi ça nous concerne déjà]
+Tout ce que tu fais avec \code{string}/\code{vector} repose sur RAII sans que tu
+aies à y penser. Écrire \emph{tes propres} classes RAII (donc un destructeur)
+demande de connaître les classes : on le mettra en pratique au \emph{chapitre
+Classes}. Pour l'instant, retiens l'idée : la fin de portée libère tout.
+\end{aretenir}
+
+\bigskip\hrule\bigskip
+\noindent\textbf{À toi de jouer.} Les exercices du dossier \code{exercices/}
+mettent en pratique, en difficulté croissante :
+
+\begin{itemize}[noitemsep]
+    \item \textbf{parcours-vector} — range-for, \code{const auto\&} /
+          \code{auto\&}, accès par indice.
+    \item \textbf{palindrome} — \code{at}/\code{[]}, comparaison, et l'astuce
+          \code{rbegin}/\code{rend}.
+    \item \textbf{geometry-module} — séparer \code{.hpp}/\code{.cpp},
+          \code{\#pragma once}, namespace \code{geom}.
+    \item \textbf{histogramme} — \code{std::vector}, \code{<cctype>},
+          \code{std::count}.
+    \item \textbf{mini-grille} — \code{vector<vector<int>>}, construction
+          \code{Grid(rows, vector<int>(cols, fill))}, double boucle.
+    \item \textbf{string-toolkit} — \code{substr}, \code{find}, \code{npos},
+          normalisation de casse.
+    \item \textbf{split-maison} — découper une chaîne sur un séparateur en un
+          \code{vector<std::string>}.
+\end{itemize}
+
+Le \textbf{projet de synthèse} (\code{projet/}) assemble le tout dans un
+générateur de \textbf{rapport texte} : lecture d'un texte, comptage de mots et
+de caractères, mise en forme tabulée. Tu y combineras conteneurs, parcours,
+\code{<cctype>}, \code{<algorithm>} et une organisation propre en modules.
+Bon courage !
+
+\end{document}

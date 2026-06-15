@@ -1,0 +1,417 @@
+\documentclass[11pt]{article}
+\input{preambule}
+
+\title{\textbf{Chapitre 3 — Lire le monde : I/O, flux et parsing}\\[0.3em]
+       \large Entrées/sorties en profondeur et conversion de texte}
+\author{Formation C++ moderne}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Un programme utile parle au monde extérieur : il lit des lignes au
+clavier, ingère un fichier de données, découpe du texte et le transforme en
+nombres. Ce chapitre approfondit les \textbf{flux} (\emph{streams}) de C++ —
+\code{std::cin}, \code{std::cout}, et surtout leur cousin discret mais essentiel
+\code{std::istringstream} — puis le \textbf{parsing} robuste de texte vers
+nombres avec \code{std::stoll} et \code{std::stod}. Si tu viens de Python, oublie
+\code{input()} et \code{int(s)} : ici, lire échoue \emph{silencieusement} si tu
+ne testes pas l'état du flux, et convertir une chaîne demande de vérifier qu'on
+a bien tout consommé. À la fin tu sauras lire jusqu'à la fin d'entrée, découper
+une ligne en jetons (\emph{tokens}), et convertir un jeton en nombre sans te
+faire avoir par une saisie malformée. Ce chapitre prépare directement le projet
+du chapitre~4.
+\end{abstract}
+
+\tableofcontents
+\bigskip\hrule\bigskip
+
+% ===========================================================================
+\section{I/O en profondeur : lire vraiment l'entrée standard}
+
+Tu connais déjà \code{std::cin >> x} et \code{std::cout << x}. On va maintenant
+regarder de près \emph{comment} l'entrée se lit, parce que les détails comptent :
+sans eux, un programme qui « lit des nombres » se met à boucler à l'infini ou à
+ignorer la moitié de la saisie.
+
+\subsection*{Lire mot par mot : \code{std::cin >> mot}}
+
+L'opérateur d'extraction \code{>>} lit \textbf{un jeton} (\emph{token}) à la fois.
+Un jeton, c'est une suite de caractères \emph{non blancs}. Point crucial :
+\code{>>} \textbf{saute d'abord tous les espaces blancs} (espaces, tabulations,
+sauts de ligne) avant de commencer à lire, puis s'arrête au premier blanc
+rencontré.
+
+\begin{lstlisting}
+#include <iostream>
+#include <string>
+
+std::string mot;
+std::cin >> mot;   // saute les blancs en tete, lit jusqu'au prochain blanc
+\end{lstlisting}
+
+Si l'utilisateur tape \code{\ \ \ bonjour\ tout\ le\ monde}, alors
+\code{std::cin >> mot} place \code{"bonjour"} dans \code{mot} (les espaces de tête
+sont ignorés, le \code{>>} s'arrête à l'espace après \code{bonjour}). Les mots
+suivants restent dans le tampon, prêts pour la prochaine extraction.
+
+C'est exactement pareil pour les types numériques : \code{std::cin >> n} avec
+\code{n} un \code{int} saute les blancs puis lit autant de chiffres que possible.
+
+\subsection*{Lire une ligne entière : \code{std::getline}}
+
+Quand tu veux \emph{toute la ligne}, espaces compris, \code{>>} ne convient pas
+(il s'arrête au premier espace). On utilise alors la fonction libre
+\code{std::getline} :
+
+\begin{lstlisting}
+// Signature (simplifiee) :
+//   std::istream& std::getline(std::istream& in, std::string& ligne);
+// Lit dans 'ligne' tout jusqu'au prochain '\n' (NON inclus dans 'ligne'),
+// et consomme ce '\n' dans le flux.
+
+#include <iostream>
+#include <string>
+
+std::string ligne;
+std::getline(std::cin, ligne);   // lit une ligne complete, espaces compris
+\end{lstlisting}
+
+\code{std::getline} lit tout jusqu'au saut de ligne, qu'elle retire du flux mais
+\emph{n'ajoute pas} à \code{ligne}. Une ligne vide donne donc une chaîne vide.
+
+\begin{piege}[Mélanger \code{>>} et \code{getline}]
+\code{std::cin >> n} lit le nombre mais \emph{laisse} le \code{'\textbackslash n'}
+dans le tampon. Si tu enchaînes avec \code{std::getline(std::cin, ligne)}, ce
+\code{getline} récupère aussitôt ce saut de ligne résiduel et te rend une ligne
+\emph{vide}, sans rien attendre de l'utilisateur. C'est un grand classique. La
+parade : ne pas mélanger les deux styles, ou nettoyer le tampon entre les deux
+(on verra \code{ignore} au besoin). Pour ce chapitre, choisis un style et
+tiens-t'y.
+\end{piege}
+
+\subsection*{Lire jusqu'à la fin : la boucle \code{while}}
+
+Comment savoir quand l'entrée est finie ? Au clavier, l'utilisateur signale la
+fin d'entrée (\emph{EOF}, \emph{end of file}) avec \textbf{Ctrl-D} sous
+Unix/Linux (Ctrl-Z sous Windows). Quand on lit depuis un fichier ou un \emph{pipe}
+(\code{./prog < data.txt}), EOF arrive naturellement à la fin du fichier.
+
+L'astuce clé : \textbf{une opération de lecture renvoie le flux lui-même, et un
+flux se teste comme un booléen}. Une lecture qui réussit donne « vrai », une
+lecture qui échoue (EOF atteint, ou donnée malformée) donne « faux ». D'où les
+deux idiomes canoniques :
+
+\begin{lstlisting}
+// 1) Lire des valeurs typees jusqu'a EOF ou erreur :
+int x;
+long long somme = 0;
+while (std::cin >> x) {        // s'arrete a EOF ou si la saisie n'est pas un entier
+    somme += x;
+}
+
+// 2) Lire des LIGNES jusqu'a EOF :
+std::string ligne;
+while (std::getline(std::cin, ligne)) {   // s'arrete a EOF
+    // traiter 'ligne'
+}
+\end{lstlisting}
+
+La condition \code{while (std::cin >> x)} se lit : « tant que j'arrive à extraire
+un entier ». Dès que \code{>>} échoue — parce qu'on est à la fin, ou parce que la
+saisie n'est pas un entier — la boucle s'arrête.
+
+\subsection*{Tester et comprendre l'état du flux}
+
+Un flux a quelques \emph{bits d'état} qui expliquent \emph{pourquoi} une lecture
+a échoué :
+
+\begin{itemize}[noitemsep]
+    \item \code{eof()} : on a atteint la fin de l'entrée.
+    \item \code{fail()} : la dernière opération a échoué (ex. on attendait un
+          nombre, on a lu une lettre).
+    \item \code{good()} : tout va bien, on peut continuer.
+\end{itemize}
+
+\begin{lstlisting}
+int n;
+if (std::cin >> n) {
+    std::cout << "lu : " << n << '\n';
+} else if (std::cin.eof()) {
+    std::cout << "fin d'entree\n";
+} else {
+    std::cout << "saisie invalide\n";
+    // ATTENTION : apres un echec, le flux reste en etat 'fail'.
+    // Pour reprendre la lecture il faut std::cin.clear(); puis vider le mauvais token.
+}
+\end{lstlisting}
+
+\begin{piege}[Un flux en échec reste en échec]
+Une fois \code{>>} en échec (\code{fail()} vrai), \emph{toutes} les lectures
+suivantes échouent aussi tant que tu n'as pas appelé \code{std::cin.clear()} pour
+remettre l'état à zéro. C'est pour ça qu'une boucle \code{while (std::cin >> x)}
+qui rencontre une lettre s'arrête net : c'est souvent le comportement voulu, mais
+sache-le.
+\end{piege}
+
+\begin{aretenir}[Les deux boucles de lecture à connaître par cœur]
+\code{while (std::cin >> x)} → lire des \textbf{jetons typés} (entiers, doubles,
+mots) un par un, en sautant les blancs, jusqu'à EOF ou première saisie invalide.\\
+\code{while (std::getline(std::cin, ligne))} → lire \textbf{ligne par ligne},
+espaces compris, jusqu'à EOF.\\
+Dans les deux cas, la fin se déclenche au clavier par \textbf{Ctrl-D}, ou
+naturellement en fin de fichier avec \code{./prog < fichier}.
+\end{aretenir}
+
+% ===========================================================================
+\section{\code{std::istringstream} : brancher un flux sur une chaîne}
+
+Voici l'outil central du chapitre. Souvent tu as déjà une \code{std::string} en
+main (une ligne lue par \code{getline}, par exemple) et tu veux la \emph{découper}
+en morceaux. Plutôt que de manipuler des indices à la main, on \textbf{branche un
+flux} sur la chaîne et on réutilise tout ce qu'on vient d'apprendre sur \code{>>}.
+
+C'est le rôle de \code{std::istringstream} (de l'en-tête \code{<sstream>}) : un
+flux d'entrée qui lit \emph{depuis une chaîne} au lieu du clavier.
+
+\begin{lstlisting}
+#include <sstream>
+#include <string>
+#include <iostream>
+
+std::string ligne = "12   7  -3   42";
+std::istringstream flux(ligne);   // branche un flux sur le contenu de 'ligne'
+
+std::string mot;
+while (flux >> mot) {             // meme idiome que std::cin >> mot !
+    std::cout << "[" << mot << "]\n";
+}
+// Affiche [12] [7] [-3] [42] : les espaces multiples sont geres tout seuls.
+\end{lstlisting}
+
+Tout ce que tu sais sur \code{std::cin} s'applique : \code{>>} saute les blancs,
+s'arrête au prochain blanc, et \code{while (flux >> mot)} s'arrête en fin de
+chaîne. \textbf{Les espaces multiples entre les mots sont absorbés
+automatiquement} — pas besoin de gérer ce cas toi-même.
+
+\subsection*{Lecture typée : laisser le flux convertir}
+
+Mieux encore : \code{>>} convertit selon le \emph{type} de la variable de
+destination. Tu peux donc lire directement des nombres, ou alterner les types.
+Imaginons une ligne du genre \code{"3.5 + 2.0"} qu'on veut analyser comme « un
+double, un opérateur, un double » :
+
+\begin{lstlisting}
+#include <sstream>
+
+std::istringstream flux("3.5 + 2.0");
+double a, b;
+char op;
+if (flux >> a >> op >> b) {        // lit un double, un char, un double
+    std::cout << a << ' ' << op << ' ' << b << '\n';   // 3.5 + 2
+}
+\end{lstlisting}
+
+Chaque \code{>>} saute les blancs puis lit selon le type attendu : \code{a} et
+\code{b} sont des \code{double} (le flux convertit le texte en flottant),
+\code{op} est un \code{char} (il lit un seul caractère non blanc, ici \code{'+'}).
+Le \code{if} global vérifie que les \emph{trois} extractions ont réussi.
+
+\begin{aretenir}[Le réflexe « découper une ligne »]
+Tu as une \code{std::string} à analyser ? Branche un \code{std::istringstream}
+dessus et lis-la avec \code{>>}, exactement comme \code{std::cin}. Tu profites
+gratuitement du saut des blancs, de la gestion des espaces multiples, de la
+conversion typée et du test d'état. C'est l'idiome standard pour
+\emph{tokenizer} en C++ — bien plus sûr que de découper à la main.
+\end{aretenir}
+
+\begin{piege}[\code{>>} sur \code{char} ne lit pas les blancs]
+\code{flux >> op} avec \code{op} un \code{char} saute les blancs comme les autres
+extractions : il te donne donc le premier caractère \emph{non blanc}. Si tu
+voulais lire un espace ou tester la présence exacte d'un séparateur, \code{>>}
+n'est pas le bon outil — il faudrait \code{flux.get(c)} qui lit un caractère brut,
+blanc compris. À garder en tête, mais pour découper en jetons, \code{>>} est ce
+qu'on veut.
+\end{piege}
+
+% ===========================================================================
+\section{Convertir du texte en nombre, proprement}
+
+Découper une ligne te donne des \code{std::string} comme \code{"42"} ou
+\code{"3.14"}. Reste à les transformer en vrais nombres. C++ offre une famille de
+fonctions dans \code{<string>} : \code{std::stoi}, \code{std::stoll},
+\code{std::stod}\ldots\ (\emph{string to int / long long / double}). On va se
+concentrer sur \code{std::stoll} et \code{std::stod}, et surtout sur la manière de
+les utiliser \textbf{de façon robuste}.
+
+\subsection*{Les signatures, et l'argument \code{\&pos}}
+
+\begin{lstlisting}
+// Signatures (simplifiees) :
+//   long long std::stoll(const std::string& s, std::size_t* pos = nullptr, int base = 10);
+//   double    std::stod (const std::string& s, std::size_t* pos = nullptr);
+
+#include <string>
+
+std::string s = "42";
+long long n = std::stoll(s);   // n vaut 42
+double    x = std::stod("3.14");  // x vaut 3.14
+\end{lstlisting}
+
+Appelées simplement, ces fonctions convertissent le \emph{début} de la chaîne et
+\textbf{ignorent ce qui suit}. C'est le piège majeur : \code{std::stoll("42xyz")}
+renvoie \code{42} sans broncher, et \code{std::stoll("12 34")} renvoie \code{12}.
+Pour beaucoup d'usages, « tolérer du rab » est inacceptable.
+
+D'où le deuxième paramètre, \code{pos} : un \emph{pointeur} vers un
+\code{std::size\_t} que la fonction \textbf{remplit avec l'indice du premier
+caractère non consommé}. Après l'appel, \code{pos} vaut le nombre de caractères
+lus. On le compare à la taille de la chaîne pour vérifier qu'on a tout consommé :
+
+\begin{lstlisting}
+#include <string>
+
+std::string s = "42xyz";
+std::size_t pos = 0;
+long long n = std::stoll(s, &pos);   // n == 42, pos == 2 (s'est arrete a 'x')
+
+if (pos == s.size()) {
+    // toute la chaine a ete consommee : conversion stricte reussie
+} else {
+    // il reste des caracteres non numeriques apres le nombre
+}
+\end{lstlisting}
+
+On passe \code{\&pos} (l'\emph{adresse} de \code{pos}) parce que le paramètre est
+un pointeur \code{std::size\_t*} : la fonction écrit \emph{à travers} ce pointeur
+pour nous renvoyer où elle s'est arrêtée.
+
+\subsection*{Les exceptions : \code{invalid\_argument} et \code{out\_of\_range}}
+
+Contrairement à \code{int(s)} en Python qui lève toujours, ces fonctions
+\textbf{lèvent une exception} dans deux cas, qu'il faut attraper :
+
+\begin{itemize}[noitemsep]
+    \item \code{std::invalid\_argument} : \textbf{aucune} conversion possible —
+          la chaîne ne commence pas par un nombre (ex. \code{std::stoll("abc")}
+          ou \code{std::stoll("")}).
+    \item \code{std::out\_of\_range} : un nombre a bien été lu, mais il
+          \textbf{dépasse} la capacité du type cible (ex. un entier gigantesque
+          pour \code{stoll}).
+\end{itemize}
+
+\begin{lstlisting}
+#include <string>
+#include <stdexcept>
+
+try {
+    std::size_t pos = 0;
+    long long n = std::stoll("abc", &pos);   // lance std::invalid_argument
+    (void) n;
+} catch (const std::invalid_argument&) {
+    // rien de numerique au debut
+} catch (const std::out_of_range&) {
+    // trop grand pour un long long
+}
+\end{lstlisting}
+
+\subsection*{Un parse strict, tout assemblé}
+
+Voici le motif complet qu'on réutilisera partout. Il combine les trois
+vérifications : exceptions \emph{et} consommation totale via \code{pos}.
+
+\begin{lstlisting}
+#include <string>
+#include <stdexcept>
+#include <optional>
+
+// Renvoie le nombre si la chaine ENTIERE est un long long valide, sinon "rien".
+std::optional<long long> parse_strict(const std::string& s) {
+    try {
+        std::size_t pos = 0;
+        long long n = std::stoll(s, &pos);
+        if (pos != s.size()) {
+            return std::nullopt;   // des caracteres en trop apres le nombre
+        }
+        return n;                  // OK : toute la chaine consommee
+    } catch (const std::invalid_argument&) {
+        return std::nullopt;       // rien de numerique
+    } catch (const std::out_of_range&) {
+        return std::nullopt;       // hors capacite
+    }
+}
+\end{lstlisting}
+
+Note un détail subtil : \code{std::stoll(" 42")} (avec un espace de tête) réussit
+et renvoie \code{42}, car la fonction saute les blancs initiaux — mais un blanc
+\emph{en fin} (\code{"42 "}) fait que \code{pos != s.size()}. Selon ton besoin, tu
+choisiras d'ôter les blancs autour avant, ou non. L'important est de
+\emph{décider} consciemment ce qui est valide.
+
+\begin{aretenir}[\code{istringstream} pour découper vs \code{stoll}/\code{stod} pour convertir]
+Ce sont deux outils complémentaires, ne les confonds pas :
+\begin{itemize}[noitemsep]
+    \item \code{std::istringstream} \textbf{découpe} : on lui donne une ligne
+          \emph{entière} contenant plusieurs jetons, et \code{>>} la débite mot
+          par mot en sautant les blancs. C'est l'outil du \emph{tokenizing}.
+    \item \code{std::stoll} / \code{std::stod} \textbf{convertissent} : on leur
+          donne \emph{un seul jeton déjà isolé} (\code{"42"}) et ils en font un
+          nombre, avec contrôle strict via \code{\&pos} et gestion des
+          exceptions.
+\end{itemize}
+Le pipeline typique : \code{getline} lit une ligne → \code{istringstream} la
+découpe en jetons → \code{stoll}/\code{stod} convertit chaque jeton. À noter :
+\code{flux >> n} (lecture typée directe) fait découpage \emph{et} conversion d'un
+coup, mais signale l'échec par l'état du flux plutôt que par une exception — pas
+par \code{pos}. Garde \code{stoll}/\code{stod} quand tu veux un contrôle fin sur
+un token isolé venu d'ailleurs.
+\end{aretenir}
+
+\begin{piege}[\code{std::stoll} accepte un signe et une base]
+\code{std::stoll("-7")} vaut \code{-7} (le signe est permis), et le 3\textsuperscript{e}
+argument \code{base} permet de lire de l'hexadécimal (\code{std::stoll("ff", \&pos, 16)}
+vaut 255). Pratique, mais ça veut dire que \code{"-7"} ou \code{"+3"} passent ton
+parse « entier » — vérifie que c'est bien ce que tu veux pour ton exercice.
+\end{piege}
+
+% ===========================================================================
+\section*{À toi de jouer}
+\addcontentsline{toc}{section}{À toi de jouer}
+
+\bigskip\hrule\bigskip
+\noindent Les exercices du dossier \code{exercices/} font travailler chaque
+brique de ce chapitre, en difficulté croissante. Tu y écriras toi-même la
+logique ; l'énoncé rappelle au besoin l'outil utile.
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Parsing de lignes} : lire l'entrée ligne par ligne avec
+          \code{getline}, brancher un \code{istringstream} sur chaque ligne, et
+          en extraire les champs voulus. Le pain quotidien du traitement de
+          données.
+    \item \textbf{Tokenize isolé} : écrire une fonction qui prend une
+          \code{std::string} et renvoie un \code{std::vector<std::string>} de ses
+          jetons, en t'appuyant sur \code{istringstream}. Brique réutilisable
+          partout ensuite.
+    \item \textbf{Conversion stricte} : implémenter un \code{parse} robuste
+          (\code{stoll}/\code{stod} + \code{\&pos} + exceptions) qui renvoie un
+          \code{std::optional} — « le nombre, ou rien si la chaîne est invalide ».
+    \item \textbf{Lecture-stats} : programme \emph{autonome} (\code{main}
+          compris) qui lit une suite de nombres sur l'entrée standard jusqu'à
+          EOF et affiche compte, somme, min, max, moyenne. L'occasion de maîtriser
+          \code{while (std::cin >> x)} et le test d'état.
+    \item \textbf{Mini-calculatrice} : programme \emph{autonome} qui lit des
+          lignes du type \code{a op b} (\code{double char double}), évalue, et
+          gère proprement les saisies invalides. Tu y combines lecture typée,
+          \code{istringstream} et gestion d'erreurs.
+\end{itemize}
+
+\begin{aretenir}[Cap sur le chapitre 4]
+Ces réflexes — lire jusqu'à EOF, découper avec \code{istringstream}, convertir
+strictement avec \code{stoll}/\code{stod} — sont exactement ceux dont tu auras
+besoin pour le \textbf{projet du chapitre~4}, qui assemblera tout ça dans une
+application qui lit, parse et traite un vrai flux de données. Soigne ces bases :
+elles portent tout le reste.
+\end{aretenir}
+
+\end{document}

@@ -1,0 +1,76 @@
+% Préambule commun aux cours de la formation C++.
+% Inclus par chaque cours.tex via \input{preambule}.
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\usepackage{xcolor}
+\usepackage{amsmath, amssymb}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    urlcolor=blue!60!black,
+    citecolor=blue!60!black,
+}
+
+% --- Coloration syntaxique du C++ via listings -----------------------------
+\usepackage{listings}
+
+\definecolor{codebg}{rgb}{0.97,0.97,0.95}
+\definecolor{codekw}{rgb}{0.10,0.10,0.60}
+\definecolor{codecomment}{rgb}{0.20,0.50,0.20}
+\definecolor{codestring}{rgb}{0.65,0.15,0.15}
+\definecolor{coderule}{rgb}{0.80,0.80,0.80}
+
+% Permet les caractères accentués (UTF-8) à l'intérieur des blocs de code.
+\lstset{
+    literate=%
+        {é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {ë}{{\"e}}1
+        {à}{{\`a}}1 {â}{{\^a}}1 {ä}{{\"a}}1
+        {î}{{\^i}}1 {ï}{{\"i}}1
+        {ô}{{\^o}}1 {ö}{{\"o}}1
+        {ù}{{\`u}}1 {û}{{\^u}}1 {ü}{{\"u}}1
+        {ç}{{\c c}}1 {É}{{\'E}}1 {È}{{\`E}}1 {À}{{\`A}}1
+}
+
+\lstdefinestyle{cpp}{
+    language=C++,
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{codekw}\bfseries,
+    commentstyle=\color{codecomment}\itshape,
+    stringstyle=\color{codestring},
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=8pt,
+    frame=single,
+    rulecolor=\color{coderule},
+    breaklines=true,
+    tabsize=4,
+    morekeywords={constexpr,noexcept,override,final,nullptr,auto,
+        std,string,vector,size_t,uint64_t,int64_t,optional,namespace}
+}
+\lstset{style=cpp}
+
+% Raccourci pour du code en ligne, en police machine à écrire.
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Boîte « À retenir »
+\usepackage{tcolorbox}
+\newtcolorbox{aretenir}[1][]{
+    colback=yellow!8, colframe=orange!70!black,
+    title=#1, fonttitle=\bfseries, sharp corners, boxrule=0.5pt
+}
+\newtcolorbox{piege}[1][Piège]{
+    colback=red!5, colframe=red!60!black,
+    title=#1, fonttitle=\bfseries, sharp corners, boxrule=0.5pt
+}

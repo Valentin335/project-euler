@@ -1,6 +1,11 @@
 #pragma once
-// Signatures imposées de l'exercice 02. NE PAS MODIFIER ce fichier.
+// Signatures imposées — NE PAS MODIFIER.
 
+// Celsius → Fahrenheit.
 double celsius_to_fahrenheit(double c);
+
+// Fahrenheit → Celsius.
 double fahrenheit_to_celsius(double f);
-const char* water_state(double celsius);  // "solide" / "liquide" / "gazeux"
+
+// Celsius → état de l'eau : "solide" (<=0), "liquide" (<100), "gazeux" (>=100).
+const char* water_state(double celsius);

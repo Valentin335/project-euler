@@ -1,19 +1,19 @@
-// Exercice 01 — Échauffement arithmétique.
-// Complète le corps des fonctions ci-dessous. Les signatures sont imposées
-// par echauffement.hpp : ne les modifie pas.
 #include "echauffement.hpp"
 
 int square(int x) {
-    // TODO: renvoyer x au carré.
+    /* x → x*x */
+    (void)x;
     return 0;
 }
 
 long long sum_to(int n) {
-    // TODO: renvoyer 1 + 2 + ... + n (attention à l'overflow !).
+    /* n → 1+2+...+n (en 64 bits) */
+    (void)n;
     return 0;
 }
 
 bool is_even(int x) {
-    // TODO: renvoyer true si x est pair.
+    /* x → vrai si pair */
+    (void)x;
     return false;
 }

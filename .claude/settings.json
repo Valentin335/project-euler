@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(g++ -std=c++20 -Wall -Wextra -Wpedantic -I \"/home/valentin/Documents/project euler/01-fondamentaux\" describe_skeleton.cpp describe_test.cpp -o test)",
+      "Bash(./test)",
+      "Bash(echo \"skeleton rc=$?\")",
+      "Bash(rm -f test)",
+      "Bash(g++ -std=c++20 -Wall -Wextra -Wpedantic -I \"/home/valentin/Documents/project euler/01-fondamentaux\" grille_skeleton.cpp grille_test.cpp -o test)",
+      "Bash(echo \"rc=$?\")"
+    ]
+  }
+}

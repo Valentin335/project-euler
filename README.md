@@ -1,29 +1,41 @@
 # Formation C++ moderne
 
-Une formation C++ par la pratique, en ~15 chapitres et ~260 exercices. Chaque
-chapitre couvre un thème, propose des exercices notés de 1 à 5 étoiles (★) avec
-tests de validation automatisés, et se termine par un **gros projet de
-synthèse**.
+Une formation C++ par la pratique, en 18 chapitres. Chaque chapitre est
+**sectionné** : le cours présente une brique (bibliothèque + fonctions utiles)
+**avant** les exercices qui la pratiquent. Les exercices sont notés en étoiles
+(★) avec tests de validation automatisés, et chaque chapitre se termine par un
+**projet de synthèse**.
+
+> **Règle d'or de la formation.** Aucun exercice n'exige un outil qui n'a pas
+> été présenté avant — soit dans une section de cours d'un chapitre antérieur,
+> soit dans une section `## Aide` de son propre énoncé. Tu dois toujours pouvoir
+> écrire ta solution avec ce qu'on t'a montré.
 
 ## Progression
 
 | #  | Chapitre | Thème |
 |----|----------|-------|
-| 01 | `01-fondamentaux/` | C++ moderne : bonnes pratiques, types, références, fonctions |
-| 02 | `02-cmake-catch2/` | Build system (CMake) et tests (Catch2) |
-| 03 | `03-memoire-pointeurs/` | Pointeurs, références, durée de vie, mémoire |
-| 04 | `04-string-vector/` | `std::string` et `std::vector` en profondeur |
-| 05 | `05-conteneurs-stl/` | `map`, `set`, `unordered_*`, `tuple`, adaptateurs |
-| 06 | `06-algorithmes-iterateurs/` | `<algorithm>`, `<numeric>`, itérateurs |
-| 07 | `07-poo-classes-raii/` | Classes, RAII, règle de 0/3/5, opérateurs |
-| 08 | `08-heritage-polymorphisme-echecs/` | Héritage, polymorphisme (projet : échecs) |
-| 09 | `09-templates-generique/` | Templates, programmation générique |
-| 10 | `10-smart-pointers-move/` | Smart pointers, sémantique de mouvement |
-| 11 | `11-lambdas-foncteurs/` | Lambdas, foncteurs, `std::function` |
-| 12 | `12-recursion/` | La pensée récursive (backtracking, mémoïsation) |
-| 13 | `13-cpp20-ranges-concepts/` | C++20 : concepts, ranges, `optional`/`variant`/`expected` |
-| 14 | `14-concurrence-threads/` | Threads, mutex, atomics, `async` |
-| 15 | `15-projet-final/` | Projet final intégrant tout |
+| 01 | `01-fondamentaux/` | Compiler, typer, choisir : types, `static_cast`, `const`, références, fonctions/surcharge, contrôle, exceptions |
+| 02 | `02-string-vector/` | `std::string` & `std::vector` au quotidien + organiser son code (`.hpp`/`.cpp`, namespaces, `<cctype>`) |
+| 03 | `03-io-flux-parsing/` | Lire le monde : I/O, `getline`, `std::istringstream`, conversion `stoll`/`stod` |
+| 04 | `04-optional-map-projet/` | `std::optional`, `std::map`, algos (survol) — **projet : mini-REPL stats** |
+| 05 | `05-cmake-catch2/` | Build system (CMake) et tests (Catch2) |
+| 06 | `06-memoire-pointeurs/` | Pointeurs, références, durée de vie, mémoire |
+| 07 | `07-string-vector-profond/` | `std::string`/`std::vector` en profondeur (`string_view`, `reserve`, invalidation) |
+| 08 | `08-conteneurs-stl/` | `map`, `set`, `unordered_*`, `tuple`, adaptateurs |
+| 09 | `09-algorithmes-iterateurs/` | `<algorithm>`, `<numeric>`, itérateurs |
+| 10 | `10-poo-classes-raii/` | Classes, RAII, règle de 0/3/5, opérateurs |
+| 11 | `11-heritage-polymorphisme-echecs/` | Héritage, polymorphisme (projet : échecs) |
+| 12 | `12-templates-generique/` | Templates, programmation générique |
+| 13 | `13-smart-pointers-move/` | Smart pointers, sémantique de mouvement |
+| 14 | `14-lambdas-foncteurs/` | Lambdas, foncteurs, `std::function` |
+| 15 | `15-recursion/` | La pensée récursive (backtracking, mémoïsation) |
+| 16 | `16-cpp20-ranges-concepts/` | C++20 : concepts, ranges, `variant`/`expected` |
+| 17 | `17-concurrence-threads/` | Threads, mutex, atomics, `async` |
+| 18 | `18-projet-final/` | Projet final intégrant tout |
+
+Les chapitres 1 à 4 se compilent à la main (`g++` + harnais maison
+`common/check.hpp`). CMake et Catch2 arrivent au chapitre 5.
 
 ## Comment travailler un chapitre
 

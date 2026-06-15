@@ -1,8 +1,8 @@
 \documentclass[11pt]{article}
 \input{preambule}
 
-\title{\textbf{Chapitre 1 — Rallumer la machine}\\[0.3em]
-       \large C++ moderne en mains propres}
+\title{\textbf{Chapitre 1 — Fondamentaux : compiler, typer, choisir}\\[0.3em]
+       \large Le cœur du langage, sans STL avancée}
 \author{Formation C++ moderne}
 \date{}
 
@@ -12,11 +12,15 @@
 \begin{abstract}
 \noindent Ce premier chapitre réactive tes réflexes C++ et installe les bonnes
 habitudes qu'on gardera toute la formation. Tu connais déjà la programmation :
-on ne réexplique pas ce qu'est une boucle, on se concentre sur \emph{ce que C++
-fait de particulier} et sur les idiomes \emph{modernes} (C++17/20). À la fin tu
-sauras compiler proprement, choisir tes types, manier références et fonctions,
-organiser ton code en \code{.hpp}/\code{.cpp}, et gérer les erreurs sans
-crasher. Le tout testé avec un petit harnais maison, \code{check.hpp}.
+on ne réexplique pas ce qu'est une boucle, on se concentre sur \emph{le cœur du
+langage} et sur ses idiomes \emph{modernes} (C++17/20). À la fin tu sauras
+compiler proprement avec les warnings, choisir tes types sans te faire piéger
+par l'overflow, distinguer copie et référence, écrire et surcharger des
+fonctions, manier \code{const}, structurer ton flot de contrôle, et signaler
+une erreur sans crasher. On reste \emph{volontairement} sur le langage :
+\code{std::string}, \code{std::vector}, l'organisation \code{.hpp}/\code{.cpp},
+les namespaces et le RAII arrivent au chapitre~2. Le tout testé avec un petit
+harnais maison, \code{check.hpp}.
 \end{abstract}
 
 \tableofcontents
@@ -61,7 +65,7 @@ erreur à comprendre. On apprend énormément en les lisant.
 
 int main() {
     std::cout << "Bonjour\n";
-    return 0;   // 0 = succès (convention Unix). Non-zéro = erreur.
+    return 0;   // 0 = succes (convention Unix). Non-zero = erreur.
 }
 \end{lstlisting}
 
@@ -69,16 +73,22 @@ int main() {
 sortie} vu par le shell (\code{echo \$?}). \code{return 0} est implicite dans
 \code{main} (mais explicite ailleurs). On exploitera ce code de retour : nos
 fichiers de test feront \code{return check::report();} (0 si tout passe, 1
-sinon).
+sinon). C'est exactement ce que vérifie le shell pour savoir si ta batterie de
+tests est passée.
 
 % ===========================================================================
 \section{Entrées/sorties : \code{cout}, \code{cin}, \code{cerr}}
 
+Les flux standard vivent dans \code{<iostream>}. \code{std::cout} est la sortie
+standard, \code{std::cerr} la sortie d'erreur (séparée, non tamponnée),
+\code{std::cin} l'entrée standard. On y envoie avec \code{<<} et on lit avec
+\code{>>}.
+
 \begin{lstlisting}
 std::cout << "x = " << x << '\n';   // sortie standard
-std::cerr << "Erreur : ...\n";       // sortie d'erreur (séparée)
+std::cerr << "Erreur : ...\n";       // sortie d'erreur (separee)
 int n;
-std::cin >> n;                        // lecture (vérifie l'état du flux !)
+std::cin >> n;                        // lecture (verifie l'etat du flux !)
 \end{lstlisting}
 
 \begin{piege}[\code{'\textbackslash n'} vs \code{std::endl}]
@@ -89,10 +99,20 @@ forcer l'écriture immédiate.
 \end{piege}
 
 Lecture robuste : \code{std::cin >> n} peut \emph{échouer} (entrée non
-numérique). Teste \code{if (std::cin >> n) \{ \ldots \}} ou l'état du flux.
+numérique). L'expression d'extraction renvoie le flux, convertible en
+\code{bool} : teste-la directement.
+
+\begin{lstlisting}
+int n;
+if (std::cin >> n) {
+    // lecture reussie : n contient la valeur
+} else {
+    std::cerr << "entree invalide\n";
+}
+\end{lstlisting}
 
 % ===========================================================================
-\section{Types fondamentaux et \code{auto}}
+\section{Types fondamentaux, overflow, \code{static\_cast} et \code{auto}}
 
 Entiers : \code{int} (au moins 16 bits, en pratique 32), \code{long long} (au
 moins 64), versions \code{unsigned}. Flottants : \code{double} par défaut.
@@ -138,17 +158,16 @@ ce qui lui permet d'attraper des erreurs très tôt et de générer du code rapi
 \paragraph{Déclarer = donner un type.} On déclare une variable en écrivant son
 type devant son nom : \code{double moyenne = 0.0;}. Tant qu'une variable n'est
 pas déclarée, elle n'existe pas — pas de création « à la volée » au milieu d'un
-calcul.
+calcul, contrairement à Python.
 
 \code{auto} demande au compilateur de \emph{déduire} le type à partir de la
 valeur d'initialisation. La variable reste fortement typée ; tu t'épargnes
 juste l'écriture du type :
 
 \begin{lstlisting}
-auto i = 42;              // i est un int (déduit du littéral 42)
+auto i = 42;              // i est un int (deduit du litteral 42)
 auto x = 3.14;            // x est un double
-auto mot = std::string("salut");  // std::string, pas const char*
-auto& r = conteneur[0];   // RÉFÉRENCE vers l'élément (le & compte !)
+auto& r = tableau[0];     // REFERENCE vers l'element (le & compte !)
 \end{lstlisting}
 
 \begin{piege}[\code{auto} sans \code{\&} fait une copie]
@@ -160,10 +179,9 @@ références.
 \end{piege}
 
 \begin{aretenir}[Quand utiliser \code{auto} ?]
-Utilise-le quand le type est évident ou verbeux (itérateurs, types de retour de
-la STL). Évite-le quand nommer le type \emph{clarifie} l'intention. Et décide
-toujours consciemment : veux-tu une copie (\code{auto}) ou une référence
-(\code{auto\&}, \code{const auto\&}) ?
+Utilise-le quand le type est évident ou verbeux. Évite-le quand nommer le type
+\emph{clarifie} l'intention. Et décide toujours consciemment : veux-tu une copie
+(\code{auto}) ou une référence (\code{auto\&}, \code{const auto\&}) ?
 \end{aretenir}
 
 % ===========================================================================
@@ -173,17 +191,24 @@ toujours consciemment : veux-tu une copie (\code{auto}) ou une référence
 \emph{et} pour le compilateur.
 
 \begin{lstlisting}
-const int n = 10;                       // valeur figée
-void afficher(const std::string& s);     // s ne sera pas modifiée
-int taille(const std::vector<int>& v);   // v passée sans copie, en lecture seule
+const int n = 10;          // valeur figee : n = 11; serait refuse a la compilation
+const double pi = 3.14159;
+\end{lstlisting}
+
+Sur un paramètre de fonction, \code{const} documente que l'argument ne sera pas
+modifié. Combiné à la référence (\code{const T\&}, section suivante), il permet
+de \emph{lire} un objet sans le copier ni le modifier :
+
+\begin{lstlisting}
+double aire_disque(const double rayon);     // promesse : rayon ne change pas
 \end{lstlisting}
 
 \begin{aretenir}[Const-correctness]
 Marque \code{const} tout ce qui ne doit pas changer : variables locales,
-paramètres en lecture seule, méthodes qui ne modifient pas l'objet. C'est plus
-sûr (le compilateur refuse les modifications accidentelles) et plus expressif.
-Avant-goût : \code{constexpr} (calcul à la \emph{compilation}) qu'on verra
-plus tard.
+paramètres en lecture seule, et plus tard les méthodes qui ne modifient pas
+l'objet. C'est plus sûr (le compilateur refuse les modifications accidentelles)
+et plus expressif. Avant-goût : \code{constexpr} (calcul à la \emph{compilation})
+qu'on verra plus tard.
 \end{aretenir}
 
 % ===========================================================================
@@ -201,29 +226,24 @@ Quand tu écris \code{b = a} pour deux variables, ou quand tu passes une variabl
 int a = 10;
 int b = a;     // b est une COPIE : b vaut 10, mais c'est un autre entier
 b = 99;        // on change b...
-// a vaut toujours 10 — a et b sont indépendants
+// a vaut toujours 10 -- a et b sont independants
 \end{lstlisting}
 
-Même chose pour les objets, y compris gros :
-
-\begin{lstlisting}
-std::vector<int> v1 = {1, 2, 3};
-std::vector<int> v2 = v1;   // COPIE intégrale des 3 éléments
-v2.push_back(4);            // v2 = {1,2,3,4}
-// v1 vaut toujours {1,2,3}
-\end{lstlisting}
+C'est l'inverse du réflexe Python, où une affectation partage une référence vers
+le même objet. En C++, l'affectation par défaut, c'est de la copie.
 
 \subsection*{Une référence ne copie pas : c'est un autre nom}
 
 Une \textbf{référence} \code{T\&} n'est pas un nouvel objet : c'est un
 \emph{alias}, un second nom pour une variable qui existe déjà. Modifier la
-référence, c'est modifier la variable d'origine.
+référence, c'est modifier la variable d'origine. Une référence doit être liée à
+sa création et ne peut jamais être re-liée vers autre chose ensuite.
 
 \begin{lstlisting}
 int a = 10;
 int& r = a;    // r est un AUTRE NOM pour a (pas une copie)
-r = 99;        // on écrit à travers r...
-// a vaut maintenant 99 ! r et a désignent le même entier
+r = 99;        // on ecrit a travers r...
+// a vaut maintenant 99 ! r et a designent le meme entier
 \end{lstlisting}
 
 \begin{aretenir}[La règle mentale]
@@ -250,7 +270,7 @@ incremente_ref(n);     // n vaut maintenant 6
 L'échange de deux variables illustre parfaitement le besoin de référence :
 
 \begin{lstlisting}
-void swap_ints(int& a, int& b) {   // SANS le &, on échangerait des copies : inutile
+void swap_ints(int& a, int& b) {   // SANS le &, on echangerait des copies : inutile
     int t = a;
     a = b;
     b = t;
@@ -259,13 +279,13 @@ void swap_ints(int& a, int& b) {   // SANS le &, on échangerait des copies : in
 
 \subsection*{À quoi ça sert aussi : éviter une copie coûteuse}
 
-Copier un \code{int} est gratuit. Copier un \code{std::vector} d'un million
-d'éléments, non. Si une fonction veut juste \emph{lire} un gros objet, on le
-passe par \code{const T\&} : pas de copie, et le \code{const} interdit toute
-modification accidentelle.
+Copier un \code{int} est gratuit. Copier un gros objet (une longue chaîne, une
+grande liste de valeurs), non. Si une fonction veut juste \emph{lire} un gros
+objet, on le passe par \code{const T\&} : pas de copie, et le \code{const}
+interdit toute modification accidentelle.
 
 \begin{lstlisting}
-double moyenne(const std::vector<double>& v);   // ni copie, ni modification
+std::size_t longueur(const std::string& s);   // ni copie, ni modification
 \end{lstlisting}
 
 \begin{aretenir}[Trois façons de passer un argument]
@@ -277,125 +297,68 @@ copier ni le modifier. \textbf{Le choix par défaut pour les gros objets en
 lecture seule.}
 \end{aretenir}
 
+\begin{aretenir}[Avant-goût : \code{std::string} et \code{std::vector}]
+Quelques exercices de ce chapitre frôlent deux types très utiles, qu'on détaille
+au chapitre~2. Pour l'instant, retiens l'essentiel :
+\begin{itemize}[noitemsep]
+    \item \code{std::string} est une chaîne de caractères qui gère sa propre
+          taille : \code{s.size()}, concaténation avec \code{+}, comparaison
+          avec \code{==}.
+    \item \code{std::vector<T>} est une liste qui grandit toute seule :
+          \code{v.push\_back(x)} ajoute en fin, \code{v[i]} accède au
+          $i$-ème élément, \code{v.size()} donne le nombre d'éléments.
+\end{itemize}
+Ce sont de « gros objets » : passe-les par \code{const T\&} en lecture. Le reste
+(mémoire, capacité, parcours) attend le chapitre~2.
+\end{aretenir}
+
 \subsection*{Et les pointeurs ?}
 
 Les \textbf{pointeurs} \code{T*} (qui peuvent valoir \code{nullptr} et qu'on
-déréférence avec \code{*}) sont l'outil de plus bas niveau, approfondi au
-chapitre~3. Pour l'instant : \emph{quand une référence suffit, préfère la
-référence} — elle est plus sûre (jamais nulle, jamais re-liée par erreur).
-
-% ===========================================================================
-\section{\code{std::string} vs \code{char*}}
-
-\code{std::string} gère sa mémoire, connaît sa taille, se concatène avec
-\code{+}, se compare avec \code{==}. Préfère-le aux tableaux de \code{char}
-hérités du C.
-
-\begin{lstlisting}
-std::string s = "salut";
-s += " !";                    // "salut !"
-std::size_t n = s.size();     // taille connue
-char c = s.at(0);             // accès vérifié (lève si hors bornes)
-const char* brut = s.c_str(); // vers une API C, si besoin
-\end{lstlisting}
-
-% ===========================================================================
-\section{\code{std::vector} en survol}
-
-Le tableau dynamique standard : il grandit tout seul.
-
-\begin{lstlisting}
-std::vector<int> v;
-v.push_back(10);
-v.push_back(20);
-std::cout << v.size() << '\n';   // 2
-std::cout << v[0] << '\n';       // 10  (v.at(0) vérifie les bornes)
-\end{lstlisting}
-
-On l'explorera en profondeur (capacité, \code{reserve}, invalidation) au
-chapitre~4. Ici, on s'en sert juste comme « liste qui marche ».
-
-% ===========================================================================
-\section{Parcourir un conteneur : la boucle \code{for} par intervalle}
-
-Pour parcourir tous les éléments d'un conteneur (un \code{std::vector}, une
-\code{std::string}\ldots), l'idiome moderne est la \textbf{boucle \code{for} par
-intervalle} (\emph{range-based for}) :
-
-\begin{lstlisting}
-std::vector<int> v = {10, 20, 30};
-for (int x : v) {                 // x prend successivement 10, puis 20, puis 30
-    std::cout << x << ' ';
-}
-\end{lstlisting}
-
-À chaque tour, \code{x} reçoit l'élément courant. Mais — et c'est le point clé,
-le même qu'à la section précédente — \code{x} est-il une \emph{copie} ou une
-\emph{référence} de l'élément ? Cela dépend de comment tu le déclares :
-
-\begin{lstlisting}
-for (int x : v)          { x *= 2; }   // x est une COPIE : v reste {10,20,30}
-for (auto& x : v)        { x *= 2; }   // x est une RÉFÉRENCE : v devient {20,40,60}
-for (const auto& x : v)  { lire(x);  } // référence en lecture seule : ni copie ni modif
-\end{lstlisting}
-
-\begin{aretenir}[Quel qualificatif choisir dans une boucle \code{for} ?]
-\begin{itemize}[noitemsep]
-    \item \code{const auto\&} → \textbf{le défaut} : lire chaque élément sans le
-          copier. Idéal pour les gros objets.
-    \item \code{auto\&} → quand tu veux \textbf{modifier} chaque élément en
-          place.
-    \item \code{auto} ou \code{int} (par valeur) → seulement pour les types
-          minuscules (\code{int}\ldots), ou si tu veux explicitement travailler
-          sur une copie sans toucher l'original.
-\end{itemize}
-\end{aretenir}
-
-\paragraph{Et derrière ?} Cette boucle s'appuie sur des \textbf{itérateurs} :
-des objets qui « pointent » sur un élément et savent avancer au suivant. La
-forme par intervalle te les cache. La forme explicite, que tu croiseras dans du
-code existant, ressemble à ceci :
-
-\begin{lstlisting}
-for (auto it = v.begin(); it != v.end(); ++it) {
-    std::cout << *it << ' ';   // *it = l'élément pointé
-}
-\end{lstlisting}
-
-\code{begin()} pointe sur le premier élément, \code{end()} \emph{juste après} le
-dernier (sentinelle de fin), \code{++it} avance, \code{*it} lit l'élément. On
-approfondit les itérateurs au chapitre~6 ; pour l'instant, la boucle par
-intervalle suffit à presque tout.
-
-% ===========================================================================
-\section{Structures de contrôle}
-
-\code{if}/\code{else}, \code{switch}, \code{while}, \code{do-while},
-\code{for}, \code{break}, \code{continue}. Deux nouveautés modernes utiles :
-
-\begin{lstlisting}
-if (auto it = trouver(x); it != fin) {   // init-statement (C++17)
-    utiliser(*it);                        // it n'existe que dans le if
-}
-switch (cmd) {
-    case 'a': /* ... */ break;
-    case 'b': [[fallthrough]];            // chute volontaire, documentée
-    case 'c': /* ... */ break;
-    default:  /* ... */ break;
-}
-\end{lstlisting}
+déréférence avec \code{*}) sont l'outil de plus bas niveau, approfondi dans un
+chapitre dédié plus loin dans la formation. Pour l'instant : \emph{quand une
+référence suffit, préfère la référence} — elle est plus sûre (jamais nulle,
+jamais re-liée par erreur).
 
 % ===========================================================================
 \section{Fonctions : déclaration, surcharge, passage des paramètres}
 
-\textbf{Surcharge} : plusieurs fonctions de même nom, différenciées par leurs
-paramètres.
+Une fonction se \emph{déclare} (signature : type de retour, nom, paramètres)
+puis se \emph{définit} (corps). On peut déclarer avant d'utiliser et définir
+plus loin.
+
+\begin{lstlisting}
+int carre(int n);            // declaration (prototype)
+
+int main() {
+    return carre(7);         // on peut appeler : la declaration suffit
+}
+
+int carre(int n) { return n * n; }   // definition
+\end{lstlisting}
+
+\textbf{Surcharge} : plusieurs fonctions de même nom, différenciées par le
+\emph{type} ou le \emph{nombre} de leurs paramètres. Le compilateur choisit la
+bonne version selon les arguments de l'appel (\emph{overload resolution}).
 
 \begin{lstlisting}
 std::string describe(int n);
 std::string describe(double d);
+std::string describe(bool b);
 std::string describe(const std::string& s);
+
+describe(42);        // appelle la version int
+describe(3.14);      // appelle la version double
+describe("salut");   // appelle la version const std::string&
 \end{lstlisting}
+
+\begin{piege}[Surcharge ambiguë]
+Si deux surcharges sont aussi « bonnes » l'une que l'autre pour un appel donné,
+le compilateur refuse : \emph{call of overloaded \ldots is ambiguous}. Méfie-toi
+des conversions implicites (un \code{char} qui pourrait aller vers \code{int}
+\emph{ou} \code{double}). Des types de paramètres bien distincts évitent
+l'ambiguïté.
+\end{piege}
 
 \textbf{Passage des paramètres} — le choix qui compte :
 
@@ -413,10 +376,52 @@ std::string describe(const std::string& s);
 
 \begin{aretenir}[Règle par défaut]
 Passe les types fondamentaux (\code{int}, \code{double}\ldots) \emph{par
-valeur}. Passe les gros objets (\code{std::string}, \code{std::vector}\ldots)
-\emph{par \code{const T\&}} si tu les lis, par \code{T\&} si tu les modifies.
-Copier un \code{std::vector} sans raison, c'est du gâchis.
+valeur}. Passe les gros objets \emph{par \code{const T\&}} si tu les lis, par
+\code{T\&} si tu les modifies. Copier un gros objet sans raison, c'est du
+gâchis.
 \end{aretenir}
+
+% ===========================================================================
+\section{Structures de contrôle}
+
+\code{if}/\code{else}, \code{switch}, \code{while}, \code{do-while},
+\code{for}, \code{break}, \code{continue} : rien de surprenant pour un
+programmeur. Deux nouveautés modernes méritent ton attention.
+
+\paragraph{Init-statement (C++17).} \code{if} et \code{switch} acceptent une
+instruction d'initialisation avant la condition, séparée par \code{;}. La
+variable déclarée n'existe que dans le \code{if}/\code{else} : portée minimale,
+moins de fuites de noms.
+
+\begin{lstlisting}
+if (int q = a / b; q > 0) {   // q n'existe que dans ce if/else
+    utiliser(q);
+} else {
+    std::cerr << "quotient nul ou negatif\n";
+}
+\end{lstlisting}
+
+\paragraph{\code{switch} et \code{[[fallthrough]]}.} Dans un \code{switch}, un
+\code{case} sans \code{break} « tombe » dans le suivant. C'est souvent un bug ;
+\code{-Wextra} t'avertit. Quand la chute est \emph{voulue}, documente-la avec
+l'attribut \code{[[fallthrough]]} (C++17) : l'intention est claire et le warning
+disparaît.
+
+\begin{lstlisting}
+switch (cmd) {
+    case 'a': /* ... */ break;
+    case 'b': [[fallthrough]];   // chute volontaire, documentee
+    case 'c': /* ... */ break;
+    default:  /* ... */ break;
+}
+\end{lstlisting}
+
+\begin{piege}[\code{switch} et déclaration de variable]
+Déclarer une variable initialisée directement dans un \code{case} sans bloc
+\code{\{ \}} provoque une erreur (\emph{crosses initialization}). Entoure le
+corps du \code{case} d'accolades \code{\{ \ldots \}} pour lui donner sa propre
+portée.
+\end{piege}
 
 % ===========================================================================
 \section{Portée et durée de vie}
@@ -427,9 +432,9 @@ libérer toi-même.
 
 \begin{lstlisting}
 void f() {
-    int a = 1;            // a naît ici
+    int a = 1;            // a nait ici
     {
-        int b = 2;        // b naît ici
+        int b = 2;        // b nait ici
         std::cout << a + b;
     }                     // b MEURT ici (fin de son bloc)
     // b n'existe plus, a existe encore
@@ -439,84 +444,72 @@ void f() {
 \paragraph{Pile et tas (survol).} Les variables locales comme \code{a} et
 \code{b} vivent sur la \textbf{pile} (\emph{stack}) : leur création et leur
 destruction sont gérées automatiquement à l'entrée et à la sortie du bloc, c'est
-quasi gratuit. Certains objets (\code{std::vector}, \code{std::string}\ldots)
-demandent en plus de la mémoire sur le \textbf{tas} (\emph{heap}) pour stocker
-leurs données — mais ils s'en occupent eux-mêmes : ils l'acquièrent à leur
-création et la libèrent à leur destruction. Tu manipules l'objet sur la pile ;
-il gère sa mémoire sur le tas pour toi. On entre dans le détail (pile vs tas,
-\code{new}/\code{delete}) au chapitre~3.
-
-\paragraph{Pourquoi c'est confortable.} Comme la destruction est liée à la
-portée, il n'y a \emph{rien à libérer manuellement} dans le cas courant : pas
-de ramasse-miettes qui passe à un moment imprévisible, pas de fuite si tu
-oublies. La libération arrive à un instant \emph{déterministe} : la fin du bloc.
-Ce mécanisme s'appelle \textbf{RAII} (section dédiée plus bas) et c'est l'idée
-centrale de la gestion mémoire en C++.
+quasi gratuit. Certains objets demandent en plus de la mémoire sur le
+\textbf{tas} (\emph{heap}) pour stocker leurs données — mais, lorsqu'ils sont
+bien conçus, ils s'en occupent eux-mêmes : ils l'acquièrent à leur création et
+la libèrent à leur destruction. On entre dans le détail (pile vs tas, allocation
+dynamique, le mécanisme RAII) au chapitre~2 et au chapitre dédié aux pointeurs.
 
 \paragraph{Conseil pratique.} Déclare chaque variable au plus près de son usage,
 dans le bloc le plus restreint possible. Une variable qui n'existe que là où on
-s'en sert, c'est moins d'erreurs et un code plus lisible.
+s'en sert, c'est moins d'erreurs et un code plus lisible. L'init-statement de la
+section précédente sert exactement ça.
 
 \begin{piege}[Shadowing]
-Une variable interne peut en « masquer » une externe du même nom. Le warning
-\code{-Wshadow} t'avertit. Évite : ça prête à confusion.
+Une variable interne peut en « masquer » une externe du même nom : à l'intérieur
+du bloc, c'est la plus interne qui compte, et l'externe redevient visible à la
+sortie. Le warning \code{-Wshadow} t'avertit. Évite : ça prête à confusion.
 \end{piege}
 
 % ===========================================================================
-\section{Headers (\code{.hpp}) vs sources (\code{.cpp})}
+\section{Gestion d'erreurs : codes de retour vs exceptions}
 
-On \emph{déclare} dans le header, on \emph{définit} dans le source.
+Deux grandes approches pour signaler qu'une opération a échoué.
+
+\paragraph{1. Codes de retour.} La fonction renvoie un \code{bool}, un code, ou
+écrit dans un paramètre de sortie passé par référence. Léger et explicite, mais
+\emph{oblige l'appelant à tester à chaque appel} — un oubli passe inaperçu.
 
 \begin{lstlisting}
-// geometry.hpp
-#pragma once                 // évite la double inclusion
-namespace geom {
-    double rectangle_area(double w, double h);   // déclaration
+bool diviser(int a, int b, int& resultat) {
+    if (b == 0) return false;       // echec signale par le code de retour
+    resultat = a / b;
+    return true;
 }
 \end{lstlisting}
+
+\paragraph{2. Exceptions.} Pour les cas \emph{exceptionnels}, on \code{throw}
+une exception ; le flot normal est interrompu et l'erreur remonte la pile
+d'appels jusqu'à un \code{try}/\code{catch} qui la gère. Les types d'exception
+standard vivent dans \code{<stdexcept>} : \code{std::invalid\_argument},
+\code{std::domain\_error}, \code{std::out\_of\_range}\ldots\ Ils prennent un
+message, qu'on relit avec \code{e.what()}.
+
 \begin{lstlisting}
-// geometry.cpp
-#include "geometry.hpp"
-namespace geom {
-    double rectangle_area(double w, double h) { return w * h; }  // définition
+#include <stdexcept>
+
+double racine(double x) {
+    if (x < 0) throw std::domain_error("racine d'un nombre negatif");
+    // ... calcul ...
+}
+
+// appel protege :
+try {
+    double r = racine(valeur);
+    std::cout << r << '\n';
+} catch (const std::domain_error& e) {   // on attrape par const reference
+    std::cerr << e.what() << '\n';
 }
 \end{lstlisting}
 
-\begin{piege}[Erreur d'édition de liens]
-Si tu \emph{définis} une fonction (non \code{inline}) directement dans un header
-inclus par plusieurs \code{.cpp}, le linker voit plusieurs définitions et se
-plaint : \emph{multiple definition}. Règle simple : déclarations dans le
-\code{.hpp}, définitions dans le \code{.cpp}.
-\end{piege}
-
-% ===========================================================================
-\section{Namespaces}
-
-Ils organisent le code et évitent les collisions de noms. Tout ce qui vient de
-la bibliothèque standard est dans \code{std::}.
-
-\begin{piege}[\code{using namespace std;}]
-Ne le mets \emph{jamais} dans un header, et évite-le même en \code{.cpp}. Il
-importe \emph{tout} \code{std} et provoque des collisions sournoises. Écrire
-\code{std::cout} est un peu plus long mais explicite et sans danger.
-\end{piege}
-
-% ===========================================================================
-\section{RAII en survol}
-
-\textbf{RAII} (\emph{Resource Acquisition Is Initialization}) : une ressource
-est acquise dans le constructeur d'un objet et \emph{libérée automatiquement}
-dans son destructeur, à la fin de la portée. C'est \emph{le} pilier de C++ : pas
-de \code{finally}, pas d'oubli de libération — le destructeur s'en charge.
-
-\begin{lstlisting}
-{
-    std::vector<int> v(1000);   // mémoire allouée
-}   // <-- ici v est détruit, mémoire libérée automatiquement
-\end{lstlisting}
-
-On l'approfondira aux chapitres 7 (classes) et 10 (smart pointers). L'exercice
-14 t'en fait coder un premier exemple.
+\begin{aretenir}[Codes ou exceptions ?]
+Réserve les exceptions aux situations \emph{anormales} (entrée invalide,
+précondition violée) — pas au flot de contrôle ordinaire. Pour un échec attendu
+et fréquent, un code de retour (ou plus tard \code{std::optional<T>}, « une
+valeur \emph{ou} rien », sans sentinelle \code{-1}) est souvent plus clair.
+Attrape toujours une exception \emph{par \code{const} référence}
+(\code{catch (const std::exception\& e)}).
+\end{aretenir}
 
 % ===========================================================================
 \section{Nommage et style}
@@ -527,44 +520,35 @@ On l'approfondira aux chapitres 7 (classes) et 10 (smart pointers). L'exercice
     \item Des noms qui \emph{disent l'intention} : \code{prev}/\code{current}
           plutôt que \code{cpt1}/\code{cpt2}.
     \item Indentation 4 espaces, accolades cohérentes.
+    \item Une variable par responsabilité ; \code{const} dès que possible.
     \item Un commentaire explique le \emph{pourquoi}, pas le \emph{quoi} évident.
 \end{itemize}
 
-% ===========================================================================
-\section{Gestion d'erreurs simple}
-
-Deux grandes approches :
-
-\begin{enumerate}[noitemsep]
-    \item \textbf{Codes de retour} (\code{bool}, code d'erreur) — léger, mais
-          oblige à tester à chaque appel.
-    \item \textbf{Exceptions} — pour les cas \emph{exceptionnels} :
-\end{enumerate}
-
-\begin{lstlisting}
-double mean(const std::vector<double>& v) {
-    if (v.empty()) throw std::domain_error("moyenne d'un ensemble vide");
-    // ...
-}
-// appel :
-try { auto m = mean(v); }
-catch (const std::domain_error& e) { std::cerr << e.what() << '\n'; }
-\end{lstlisting}
-
-Avant-goût : \code{std::optional<T>} modélise « une valeur \emph{ou} rien »
-sans valeur-sentinelle (genre \code{-1}). On le découvre à l'exercice~12.
-
 \begin{aretenir}[Le fil rouge du chapitre]
-Compile avec les warnings, choisis tes types (gare à l'overflow), passe les
-gros objets par \code{const\&}, sépare \code{.hpp}/\code{.cpp}, et signale les
-erreurs proprement. Ces réflexes te suivront jusqu'au projet final.
+Compile avec les warnings et corrige-les. Choisis tes types en pensant à
+l'overflow (\code{static\_cast} vers \code{long long} quand il faut). Distingue
+copie et référence, et passe les gros objets par \code{const\&}. Structure
+proprement ton flot de contrôle. Signale les erreurs avec un code de retour ou
+une exception, selon que l'échec est ordinaire ou exceptionnel. Ces réflexes te
+suivront tout le reste de la formation.
 \end{aretenir}
 
 \bigskip\hrule\bigskip
-\noindent\textbf{À toi de jouer.} Les 14 exercices du dossier
-\code{exercices/} couvrent chacune de ces sections, en difficulté croissante
-(\(\star\) à \(\star\star\star\star\star\)). Le projet de synthèse
-(\code{projet/}) assemble le tout dans un mini-REPL de statistiques. Bon
+\noindent\textbf{À toi de jouer.} Les exercices du dossier \code{exercices/}
+suivent l'ordre de ce chapitre, en difficulté croissante :
+\code{01-echauffement} (premières fonctions, types et code retour),
+\code{02-temperatures} (calcul, conversions, choix de type),
+\code{03-valeur-reference} (copie vs \code{T\&} : modifier ou non l'argument de
+l'appelant), \code{04-const-exceptions} (\code{const\&} pour lire, \code{\&}
+pour modifier, et \code{throw} pour signaler l'erreur), \code{05-surcharge}
+(une fonction \code{describe}, plusieurs surcharges choisies par le
+compilateur), \code{06-fizzbuzz} (structures de contrôle), puis deux exercices
+plus autonomes : un \emph{dispatch} sur commande (\code{switch}, init-statement,
+\code{[[fallthrough]]}) et une \emph{racine sûre} (gérer le cas négatif par
+exception ou code de retour). Chaque énoncé introduit, au besoin, l'outil dont
+tu auras besoin. Le mini-projet de synthèse — une \emph{boîte à outils
+numériques} — assemble fonctions, choix de types, \code{const}-correctness et
+gestion d'erreurs dans un petit programme complet, \code{main} compris. Bon
 courage !
 
 \end{document}

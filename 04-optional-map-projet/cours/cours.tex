@@ -1,0 +1,354 @@
+\documentclass[11pt]{article}
+\input{preambule}
+
+\title{\textbf{Chapitre 4 — Choisir et compter : optional, map, algorithmes}\\[0.3em]
+       \large Modéliser l'absence, compter, et le projet de synthèse}
+\author{Formation C++ moderne}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Ce chapitre te donne trois briques qui reviennent partout dans le
+code réel : quelques \textbf{algorithmes} de la STL (\code{<algorithm>},
+\code{<numeric>}) pour trier, sommer et trouver des extrema ; \code{std::optional}
+pour modéliser proprement « une valeur \emph{ou} rien » sans valeur-sentinelle
+bricolée ; et \code{std::map} pour associer des clés à des valeurs et compter
+sans effort. On les emploie ici \emph{en boîte noire} — juste ce qu'il faut pour
+les utiliser correctement — et on les approfondira dans les chapitres dédiés.
+À la fin, un \textbf{projet de synthèse} (un mini-REPL de statistiques) réunit
+tout ce que tu as vu depuis le chapitre~1.
+\end{abstract}
+
+\tableofcontents
+\bigskip\hrule\bigskip
+
+% ===========================================================================
+\section{\code{<algorithm>} et \code{<numeric>} : le strict nécessaire}
+
+La bibliothèque standard fournit des dizaines d'algorithmes prêts à l'emploi.
+On n'en prend ici que quatre, ceux dont tu auras besoin tout de suite. Ils
+travaillent presque tous sur un \emph{intervalle} décrit par deux itérateurs :
+\code{v.begin()} (premier élément) et \code{v.end()} (juste après le dernier).
+
+\begin{aretenir}[En boîte noire pour l'instant]
+On utilise ces algorithmes comme des outils tout faits, sans regarder dedans.
+Le chapitre \emph{Algorithmes} les reprendra en profondeur (lambdas,
+prédicats, complexité, ranges de C++20). Ici, objectif : savoir les
+\emph{appeler} correctement.
+\end{aretenir}
+
+\subsection*{Trier : \code{std::sort}}
+
+\code{std::sort(debut, fin)} réordonne les éléments de l'intervalle
+\emph{sur place}, par ordre croissant par défaut.
+
+\begin{lstlisting}
+#include <algorithm>
+#include <vector>
+
+std::vector<int> v = {3, 1, 4, 1, 5, 9, 2, 6};
+std::sort(v.begin(), v.end());     // v devient {1, 1, 2, 3, 4, 5, 6, 9}
+\end{lstlisting}
+
+Pour trier en ordre \emph{décroissant}, on passe un troisième argument : un
+objet-comparateur. Le plus simple est \code{std::greater<>{}} (de
+\code{<functional>}), qui compare avec « plus grand que » :
+
+\begin{lstlisting}
+#include <functional>   // pour std::greater
+
+std::sort(v.begin(), v.end(), std::greater<>{});   // {9, 6, 5, 4, 3, 2, 1, 1}
+\end{lstlisting}
+
+\begin{piege}[\code{std::sort} modifie le conteneur]
+Le tri se fait \textbf{en place} : l'ordre d'origine est perdu. Si tu as besoin
+de garder la version non triée, fais une copie d'abord
+(\code{auto copie = v;}) et trie la copie.
+\end{piege}
+
+\subsection*{Sommer : \code{std::accumulate}}
+
+\code{std::accumulate(debut, fin, valeur\_initiale)} (de \code{<numeric>}) part
+de la valeur initiale et y ajoute chaque élément. Il renvoie la somme.
+
+\begin{lstlisting}
+#include <numeric>
+
+std::vector<int> notes = {12, 15, 9, 18};
+int total = std::accumulate(notes.begin(), notes.end(), 0);   // 54
+\end{lstlisting}
+
+\begin{piege}[Le type de l'accumulateur décide du calcul]
+Le type du \emph{troisième argument} fixe le type interne de l'addition. Avec
+\code{0} (un \code{int}), tout est calculé en \code{int}, même sur un vecteur de
+\code{double} : tu perds les décimales !
+
+\begin{lstlisting}
+std::vector<double> v = {1.5, 2.5, 3.0};
+double faux = std::accumulate(v.begin(), v.end(), 0);     // 6.0 ? NON : 6 (tronqué)
+double bon  = std::accumulate(v.begin(), v.end(), 0.0);   // 7.0, correct
+\end{lstlisting}
+
+\noindent Règle : pour sommer des \code{double}, démarre à \code{0.0}. Pour des
+entiers qui pourraient déborder, démarre à \code{0LL} (un \code{long long}).
+\end{piege}
+
+\subsection*{Extrema : \code{std::min\_element} et \code{std::max\_element}}
+
+Ces deux-là renvoient un \textbf{itérateur} vers le plus petit (resp. plus
+grand) élément — \emph{pas} la valeur elle-même. Pour obtenir la valeur, on
+déréférence l'itérateur avec \code{*}.
+
+\begin{lstlisting}
+#include <algorithm>
+
+std::vector<int> v = {3, 1, 4, 1, 5, 9, 2};
+auto it_min = std::min_element(v.begin(), v.end());   // itérateur, pas un int
+int mini    = *it_min;                                 // 1  (on déréférence)
+int maxi    = *std::max_element(v.begin(), v.end());   // 9  (directement)
+\end{lstlisting}
+
+\begin{piege}[Conteneur vide $\to$ itérateur invalide]
+Sur un intervalle vide, \code{min\_element}/\code{max\_element} renvoient
+\code{end()}, qui ne pointe sur rien : le déréférencer est un \emph{comportement
+indéfini}. Vérifie \code{if (!v.empty())} avant. (C'est précisément un cas où
+\code{std::optional} de la section suivante sera utile.)
+\end{piege}
+
+\begin{aretenir}[Les quatre en une phrase]
+\code{std::sort(b, e[, comp])} trie en place ;
+\code{std::accumulate(b, e, init)} somme (soigne le type de \code{init}) ;
+\code{std::min\_element}/\code{max\_element} renvoient un \emph{itérateur} à
+déréférencer. Tous travaillent sur \code{begin()}/\code{end()}.
+\end{aretenir}
+
+% ===========================================================================
+\section{\code{std::optional<T>} : une valeur ou rien}
+
+Comment une fonction dit-elle « je n'ai pas de résultat » ? En venant d'autres
+langages, le réflexe est une \emph{valeur-sentinelle} : renvoyer \code{-1}, ou
+une chaîne vide, ou \code{NaN}. C'est fragile : il faut se souvenir de la
+convention, et parfois la sentinelle est une valeur légitime (que faire si
+\code{-1} est un résultat possible ?).
+
+\code{std::optional<T>} (de \code{<optional>}) résout ça proprement : il
+contient \emph{soit} une valeur de type \code{T}, \emph{soit} rien du tout
+(\code{std::nullopt}). Le « rien » est explicite, distinct de toute valeur réelle.
+
+\subsection*{Produire un \code{optional}}
+
+\begin{lstlisting}
+#include <optional>
+
+std::optional<int> chercher(int x) {
+    if (x < 0)
+        return std::nullopt;   // "rien" : pas de résultat valable
+    return x * 2;              // une valeur : conversion implicite en optional<int>
+}
+\end{lstlisting}
+
+Tu renvoies \code{std::nullopt} pour l'absence, et directement une valeur de
+type \code{T} sinon — elle est automatiquement « emballée » dans l'optional.
+
+\subsection*{Consommer un \code{optional}}
+
+Trois façons de regarder ce qu'il contient :
+
+\begin{lstlisting}
+std::optional<int> r = chercher(21);
+
+if (r.has_value()) {           // y a-t-il une valeur ?
+    int v = r.value();         // .value() la récupère (lève si vide)
+}
+
+if (r) {                       // idem, plus court : un optional se teste comme un bool
+    int v = *r;                // *r déréférence, comme un pointeur
+}
+
+int v = r.value_or(0);         // la valeur, ou 0 si l'optional est vide
+\end{lstlisting}
+
+\begin{piege}[\code{.value()} sur un optional vide \emph{lève}]
+Appeler \code{.value()} (ou déréférencer \code{*r}) alors que l'optional est
+vide lance une exception \code{std::bad\_optional\_access} (pour \code{.value()})
+ou est un comportement indéfini (pour \code{*r}). \textbf{Teste toujours} avant :
+\code{if (r) \{ ... \}}, ou utilise \code{r.value\_or(defaut)}.
+\end{piege}
+
+\subsection*{Exemple complet : \code{safe\_divide}}
+
+La division par zéro n'a pas de résultat. Plutôt qu'un \code{-1} ambigu ou une
+exception, on renvoie « rien » :
+
+\begin{lstlisting}
+#include <optional>
+
+std::optional<double> safe_divide(double a, double b) {
+    if (b == 0.0)
+        return std::nullopt;   // pas de résultat : division impossible
+    return a / b;
+}
+
+// Utilisation :
+if (auto q = safe_divide(10.0, 4.0)) {   // init-statement + test en une ligne
+    std::cout << "Quotient = " << *q << '\n';   // 2.5
+} else {
+    std::cout << "Division par zéro\n";
+}
+\end{lstlisting}
+
+\begin{aretenir}[Pourquoi mieux qu'une sentinelle ?]
+Avec \code{std::optional}, l'absence est dans le \emph{type} : impossible de
+l'oublier, le compilateur t'oblige à extraire la valeur. Aucune valeur réelle
+n'est « réservée » pour signaler l'erreur. Le code qui appelle est clair :
+\code{if (resultat) \{ ... \}}.
+\end{aretenir}
+
+% ===========================================================================
+\section{\code{std::map<K,V>} : un dictionnaire trié par clé}
+
+\code{std::map<Cle, Valeur>} (de \code{<map>}) associe des \emph{clés} uniques à
+des \emph{valeurs}. Si tu viens de Python, c'est le \code{dict} — avec une
+différence majeure : la map est en permanence \textbf{triée par clé}.
+
+\begin{lstlisting}
+#include <map>
+#include <string>
+
+std::map<std::string, int> ages;
+ages["Alice"] = 30;            // insère la paire ("Alice", 30)
+ages["Bob"]   = 25;
+int a = ages["Alice"];         // 30  (accès par clé)
+std::size_t n = ages.size();   // 2   (nombre de paires)
+\end{lstlisting}
+
+\subsection*{Compter sans effort : \code{++m[cle]}}
+
+C'est l'idiome vedette de la map. L'opérateur \code{[]} a une propriété très
+utile : si la clé \emph{n'existe pas encore}, il l'insère avec une valeur
+\textbf{par défaut} (\code{0} pour un \code{int}), puis renvoie une référence
+vers elle. Donc :
+
+\begin{lstlisting}
+std::map<std::string, int> compte;
+++compte["chat"];    // "chat" absent -> créé à 0, puis incrémenté -> 1
+++compte["chat"];    // "chat" présent -> 1, puis incrémenté        -> 2
+++compte["chien"];   // "chien" absent -> créé à 0, puis incrémenté -> 1
+\end{lstlisting}
+
+Pas besoin de tester « la clé existe-t-elle ? » : \code{++compte[mot]} fait tout.
+
+\subsection*{Parcourir : structured bindings, et c'est trié}
+
+On parcourt une map avec une boucle \code{for} par intervalle. Chaque élément
+est une \emph{paire} (clé, valeur) ; les \textbf{structured bindings}
+(C++17) la décomposent en deux noms d'un coup :
+
+\begin{lstlisting}
+for (const auto& [mot, n] : compte) {    // [cle, valeur] : décomposition
+    std::cout << mot << " : " << n << '\n';
+}
+\end{lstlisting}
+
+\begin{aretenir}[Le parcours d'une map donne les clés \emph{dans l'ordre}]
+Contrairement à un \code{dict} Python (ordre d'insertion) ou à une table de
+hachage, parcourir une \code{std::map} visite toujours les clés \textbf{triées}
+(ordre croissant). Pour l'exemple ci-dessus, la sortie sera \code{chat} puis
+\code{chien}, quel que soit l'ordre d'insertion. Pratique pour produire des
+résultats déterministes et lisibles.
+\end{aretenir}
+
+\subsection*{Exemple complet : compter des mots}
+
+\begin{lstlisting}
+#include <iostream>
+#include <map>
+#include <string>
+
+int main() {
+    std::map<std::string, int> freq;
+    std::string mot;
+    while (std::cin >> mot) {     // lit mot à mot jusqu'à la fin de l'entrée
+        ++freq[mot];             // compte chaque mot
+    }
+    for (const auto& [m, n] : freq) {   // affichage trié par mot
+        std::cout << m << " : " << n << '\n';
+    }
+}
+\end{lstlisting}
+
+\begin{piege}[\code{m[cle]} en lecture \emph{insère} la clé]
+Attention : \code{compte["xyz"]} insère \code{"xyz"} (avec la valeur 0) même si
+tu voulais seulement \emph{lire}. Pour vérifier la présence sans insérer, utilise
+\code{compte.contains("xyz")} (C++20) ou \code{compte.find("xyz") != compte.end()}.
+\end{piege}
+
+% ===========================================================================
+\section{Le modèle « spirale »}
+
+\begin{aretenir}[On revient sur tout en plus profond]
+Ce chapitre suit un modèle \textbf{en spirale} : on découvre \code{std::map},
+\code{std::optional} et les algorithmes \emph{en boîte noire}, avec juste assez
+de détails pour les employer sans se tromper. On ne plonge pas encore dans leur
+mécanique interne (arbre équilibré sous la map, gestion mémoire de l'optional,
+itérateurs et lambdas des algorithmes). Les chapitres ultérieurs —
+\emph{Conteneurs} et \emph{Algorithmes} — repasseront par ces mêmes outils pour
+en détailler le fonctionnement, le coût et les variantes. Tu les utilises
+aujourd'hui ; tu les comprendras de fond en comble bientôt.
+\end{aretenir}
+
+% ===========================================================================
+\section{Récapitulatif}
+
+\begin{itemize}[noitemsep]
+    \item \code{std::sort(b, e)} trie en place ; ajoute \code{std::greater<>{}}
+          pour l'ordre décroissant.
+    \item \code{std::accumulate(b, e, init)} somme — le type de \code{init}
+          (\code{0.0}, \code{0LL}\ldots) gouverne le calcul.
+    \item \code{std::min\_element}/\code{max\_element} renvoient un
+          \emph{itérateur} ; déréférence avec \code{*}.
+    \item \code{std::optional<T>} : \code{std::nullopt} pour rien, une valeur
+          sinon ; teste avec \code{if (opt)} ; lis avec \code{*opt} /
+          \code{opt.value()} / \code{opt.value\_or(...)}.
+    \item \code{std::map<K,V>} : \code{++m[cle]} pour compter ; parcours
+          \code{for (const auto\& [k, v] : m)} \textbf{trié par clé}.
+\end{itemize}
+
+\bigskip\hrule\bigskip
+\noindent\textbf{À toi de jouer.} Les exercices du dossier \code{exercices/}
+mettent ces briques en pratique, de la plus simple à la plus complète :
+
+\begin{itemize}[noitemsep]
+    \item \textbf{optionnel} — une fonction qui renvoie \code{std::optional<T>}
+          (par exemple une recherche, un parsing qui peut échouer).
+    \item \textbf{compteur-mots} (autonome) — un programme complet,
+          \code{main} compris, qui compte les occurrences via une
+          \code{std::map} et affiche le résultat trié.
+    \item \textbf{moyenne-ou-rien} — calculer la moyenne d'un \code{vector},
+          mais renvoyer \code{std::nullopt} si le vecteur est vide (combine
+          \code{accumulate} et \code{optional}).
+    \item \textbf{config-parser} — lire des lignes \code{cle = valeur} et les
+          ranger dans une \code{std::map}, en renvoyant un \code{optional} quand
+          on interroge une clé absente.
+    \item \textbf{PROJET de synthèse : mini-REPL de statistiques} — le gros
+          morceau. Une boucle de lecture-évaluation-affichage qui accepte des
+          commandes (ajouter des nombres, demander somme, moyenne, min, max,
+          tri\ldots), réunissant \emph{tout} depuis le chapitre~1 :
+          \code{std::vector}, \code{std::string} et parsing de flux, les
+          algorithmes de ce chapitre, \code{std::optional} pour les résultats
+          indéfinis, et \code{std::map} pour, par exemple, un historique de
+          commandes.
+\end{itemize}
+
+\begin{aretenir}[Le projet sera « cmakifié » au chapitre suivant]
+Tu écriras le mini-REPL en compilation manuelle, dans l'esprit des chapitres
+précédents. Au \textbf{chapitre suivant (CMake)}, on reprendra ce même projet
+pour le construire proprement avec CMake et le brancher sur les tests
+automatisés — première étape vers un vrai flux de build de projet.
+\end{aretenir}
+
+\noindent Bon courage !
+
+\end{document}

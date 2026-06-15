@@ -1,82 +1,84 @@
-# Chapitre 1 — Rallumer la machine : C++ moderne en mains propres
+# Chapitre 1 — Fondamentaux : compiler, typer, choisir
 
-> Durée estimée : **au moins une semaine** de travail.
-
-Ce chapitre réactive tes réflexes C++ et installe les bonnes habitudes de toute
-la formation : compilation propre, types et overflow, références, fonctions,
-`.hpp`/`.cpp`, namespaces, RAII en survol, gestion d'erreurs.
+Le cœur du langage C++ sans la STL avancée : types et `static_cast`, `const` et
+références, fonctions et surcharge, structures de contrôle, et les deux styles
+de gestion d'erreur (code de retour vs exceptions). On compile **à la main**
+avec `g++` et on teste avec le harnais maison `check.hpp` — on vivra la « vie
+sans build system » avant de découvrir CMake au chapitre 2.
 
 ## Le cours
 
-Compile le support de cours :
+Compile le support de cours puis lis-le **en premier** :
 
 ```bash
 cd cours
 latexmk -pdf cours.tex     # produit cours.pdf
+# (ou, sans latexmk :)  pdflatex cours.tex
 ```
 
-Lis `cours.pdf` en premier. Il couvre 17 sections, chacune reliée à un ou
-plusieurs exercices.
+Lis `cours.pdf` avant d'attaquer les exercices : il introduit chaque notion
+(compilation, types/overflow, `const`, valeur vs référence, fonctions/surcharge,
+contrôle, gestion d'erreurs) que les exercices viennent ensuite mettre en
+pratique.
 
 ## Les exercices
 
-14 exercices en difficulté croissante (★ à ★★★★★), dans `exercices/` :
+Huit exercices en difficulté croissante, dans `exercices/`. Tous fournissent un
+squelette (`*_skeleton.cpp`) et un fichier de test (`*_test.cpp`) : **aucun
+n'est autonome**, tu n'as jamais à écrire le `main` toi-même. Suis l'ordre du
+tableau de haut en bas.
 
-Les exercices `Nb` (ex. `02b`) sont des exercices **doux et très guidés**,
-ajoutés pour reprendre en douceur après une pause loin du C++. Ils précèdent
-l'exercice qui approfondit la même notion (c'est aussi l'ordre dans lequel
-`ls` les affiche). Suis l'ordre du tableau de haut en bas.
+| #  | Exercice                | ★ | Thème                                              |
+|----|-------------------------|---|---------------------------------------------------|
+| 01 | Échauffement            | ★ | types, overflow, `static_cast`                    |
+| 02 | Températures            | ★ | fonctions, division flottante (formules données)  |
+| 03 | Valeur ou référence     | ★ | passage par copie vs `&`, modification en place   |
+| 04 | Const et exceptions     | ★ | `const&`, `&`, `throw`                             |
+| 05 | Surcharge               | ★ | surcharge de fonctions, choix selon le type       |
+| 06 | FizzBuzz                | ★ | structures de contrôle, `to_string`               |
+| 07 | Dispatch de commandes   | ★ | `switch` sur un `char`                             |
+| 08 | Racine sûre             | ★ | code de retour (`out&`) vs exceptions             |
 
-| #  | Exercice | ★ | Thème |
-|----|----------|---|-------|
-| 01 | Échauffement arithmétique | ★ | types, overflow, `long long` |
-| 02b | Valeur ou référence | ★ | **copie vs référence** (guidé) |
-| 02 | Conversions de température | ★ | fonctions, retour de littéraux |
-| 03b | Déclarations, `auto`, copie/réf | ★ | **`auto`, types statiques** (guidé) |
-| 03 | const-correctness & références | ★★ | `const&`, `&`, exceptions |
-| 04 | Échange & rotation | ★★ | références (sans `std::swap`) |
-| 05 | Statistiques sur `vector` | ★★ | range-for, exceptions |
-| 06b | Parcourir un `vector` | ★★ | **range-for : lire / modifier** (guidé) |
-| 06 | Renversement & palindrome | ★★ | `std::string`, casse |
-| 07 | Surcharge de `describe` | ★★ | résolution de surcharge |
-| 08 | FizzBuzz paramétrable | ★★ | `std::string`, `std::vector` |
-| 09b | Portée & somme par référence | ★★ | **durée de vie, accumulateur** (guidé) |
-| 09 | Module `geometry` (.hpp/.cpp) | ★★★ | headers, namespaces, linker |
-| 10 | Comptage & histogramme | ★★★ | `std::string`, tableaux |
-| 11 | Parsing robuste d'entiers | ★★★ | `std::stoll`, validation |
-| 12 | Optionnel | ★★★★ | `std::optional` |
-| 13 | Mini-grille | ★★★★ | `vector<vector<int>>`, `at()` |
-| 14 | RAII `ScopedAppender` | ★★★★★ | destructeur, `=delete` |
+## Comment travailler
 
-Pour chaque exercice :
+Pour chaque exercice (01 à 08) :
 
-1. Lis `enonce.md`.
-2. Regarde les signatures imposées dans le `.hpp` (ne le modifie pas).
-3. Complète le fichier `*_skeleton.cpp` (**ta solution**).
-4. Compile et teste (voir `COMPILER.md`).
-5. Quand tous les tests passent, dis-le — on pourra comparer avec le corrigé.
+1. Lis `enonce.md` (court : objectif, signatures, outil/aide, cas de test).
+2. Regarde les signatures imposées dans le `.hpp` (**ne le modifie pas**).
+3. Complète le fichier `*_skeleton.cpp` (**ta solution**) — les commentaires
+   `/* entrée → sortie */` te rappellent le contrat.
+4. Compile et teste (voir `COMPILER.md`) ; le code de retour `0` signifie que
+   tous les cas passent.
+5. Quand tous les tests passent, dis-le **explicitement** — on pourra alors
+   comparer avec le corrigé.
 
-### Faire relire un exercice : `/review-exo`
+## Table de couverture (règle d'or)
 
-Une fois ta solution écrite, tu peux lancer le skill de revue :
+Aucun outil n'est exigé sans avoir été présenté, soit par le cours de ce
+chapitre (ou un chapitre antérieur), soit par une section `## Outil`/`## Aide`
+locale à l'énoncé.
 
-```
-/review-exo 05-stats-vector
-```
+| Exercice                  | Outils exigés                                       | Source                                                     |
+|---------------------------|-----------------------------------------------------|------------------------------------------------------------|
+| 01 — Échauffement         | `static_cast`, types 64 bits                        | cours ch.1 §Types fondamentaux, overflow, `static_cast` + Aide locale (`## Outil`) |
+| 02 — Températures         | `const char*`, division flottante                   | cours ch.1 §Types fondamentaux ; §Fonctions                |
+| 03 — Valeur ou référence  | `T&` (référence), modification en place ; `std::vector` | cours ch.1 §Valeur ou référence ; `vector` : cours ch.2 §`std::vector` |
+| 04 — Const et exceptions  | `const&`, `&`, `throw`/`std::invalid_argument` ; `std::string` | cours ch.1 §`const` ; §Valeur ou référence ; §Gestion d'erreurs + Aide locale (`## Outil`) ; `string` : cours ch.2 §`std::string` |
+| 05 — Surcharge            | surcharge de fonctions ; `std::to_string`/`std::format` ; `std::string` | cours ch.1 §Fonctions (surcharge) + Aide locale (`## Outil`) ; `string` : cours ch.2 |
+| 06 — FizzBuzz             | `%`, `if`/`for` ; `std::to_string` ; `std::vector`/`std::string` | cours ch.1 §Structures de contrôle + Aide locale (`## Outil`) ; `vector`/`string` : cours ch.2 |
+| 07 — Dispatch de commandes| `switch` sur `char` ; `std::to_string` ; `std::string` | cours ch.1 §Structures de contrôle + Aide locale (`## Aide`) ; `string` : cours ch.2 |
+| 08 — Racine sûre          | `out&`, `throw`/`std::domain_error`/`std::invalid_argument`, boucle | cours ch.1 §Gestion d'erreurs ; §Valeur ou référence + Aide locale (`## Aide`) |
 
-Il compile, lance la batterie de tests, et vérifie que tu respectes l'esprit du
-cours (bibliothèques interdites, signatures, idiomes modernes). Il **ne te
-donne jamais la solution** — il pointe ce qui cloche par des questions et des
-indices.
+> Note : `std::string` et `std::vector` sont le sujet propre du **chapitre 2**.
+> Ici on ne s'en sert que de façon élémentaire (taille, accès, range-for,
+> concaténation), juste assez pour exercer le cœur du langage ; leur étude
+> détaillée vient au chapitre suivant.
 
-## Le projet de synthèse
+## Le projet
 
-Dans `projet/` : un **mini-REPL de statistiques** qui combine toutes les notions
-du chapitre. À faire une fois les exercices digérés. Il sert de pont vers le
-chapitre 2 (on le « cmakifiera »).
+Pas de gros projet dans ce chapitre : on travaille le langage seul. Le **projet
+de synthèse** de cette première partie de la formation (un mini-REPL de
+statistiques) arrive au **chapitre 4**, une fois les outils des chapitres 2 à 4
+en main.
 
-## Règle d'or
-
-C'est **toi** qui codes. L'assistant guide, explique, débugue avec toi — mais
-n'écrit pas la solution à ta place. Les corrigés (`solutions/`) ne se regardent
-qu'**après** avoir réussi.
+Les corrigés sont dans `solutions/`, à consulter **après** avoir réussi.
