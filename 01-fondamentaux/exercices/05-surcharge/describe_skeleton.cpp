@@ -1,25 +1,26 @@
 #include "describe.hpp"
+#include <format>
 
 std::string describe(int n) {
     /* 42 → "entier 42" */
-    (void)n;
-    return {};
+    return "entier "+ std::to_string(n);
 }
 
 std::string describe(double d) {
     /* 3.5 → "flottant 3.5" */
-    (void)d;
-    return {};
+    return "flottant " + std::to_string(d);
 }
 
 std::string describe(const std::string& s) {
     /* "bonjour" → "texte: bonjour" */
-    (void)s;
-    return {};
+
+    return "texte: " + s;
 }
 
 std::string describe(bool b) {
     /* true → "booleen vrai" */
-    (void)b;
-    return {};
+    if (b){
+        return "booleen vrai";
+    }
+    return "booleen faux";
 }

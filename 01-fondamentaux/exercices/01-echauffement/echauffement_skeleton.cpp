@@ -2,18 +2,16 @@
 
 int square(int x) {
     /* x → x*x */
-    (void)x;
-    return 0;
+    return x*x;
 }
 
 long long sum_to(int n) {
     /* n → 1+2+...+n (en 64 bits) */
-    (void)n;
-    return 0;
+    return   (static_cast<long long> (n) * (n+1)) /2 ;
 }
 
 bool is_even(int x) {
     /* x → vrai si pair */
-    (void)x;
-    return false;
+    return (x%2==0);
 }
+

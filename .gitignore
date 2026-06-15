@@ -20,6 +20,8 @@ CLAUDE.md
 a.out
 *.exe
 *.dSYM/
+# Exécutables de test compilés manuellement (g++ ... -o test)
+**/exercices/*/test
 
 # Build CMake
 build/

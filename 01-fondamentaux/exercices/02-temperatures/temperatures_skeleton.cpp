@@ -2,18 +2,21 @@
 
 double celsius_to_fahrenheit(double c) {
     /* c → c * 9/5 + 32 */
-    (void)c;
-    return 0.0;
+    return  c * 9/5 + 32;
 }
 
 double fahrenheit_to_celsius(double f) {
     /* f → (f - 32) * 5/9 */
-    (void)f;
-    return 0.0;
+    return (f - 32) * 5/9 ;
 }
 
 const char* water_state(double celsius) {
     /* celsius → "solide" / "liquide" / "gazeux" */
-    (void)celsius;
-    return "";
+    if (celsius <=0){
+        return "solide";
+    }
+    if (celsius <100){
+        return "liquide";
+    }
+    return "gazeux";
 }
